@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mesh.T3 import T3 as Triangle
-from pyoneer.mech.fem.model.membrane import Membrane
-from pyoneer.mech.fem.elem import FiniteElement
-from pyoneer.mesh.tri.triutils import area_tri
-from pyoneer.mech.fem.utils import topo_to_gnum
-from pyoneer.math.array import atleast2d
+from dewloosh.geom.T3 import T3 as Triangle
+from dewloosh.solid.fem.model.membrane import Membrane
+from dewloosh.solid.fem.elem import FiniteElement
+from dewloosh.geom.tri.triutils import area_tri
+from dewloosh.solid.fem.utils import topo_to_gnum
+from dewloosh.math.array import atleast2d
 import numpy as np
 from numpy import ndarray
 from numba import njit, prange

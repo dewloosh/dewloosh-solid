@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from numba import njit, prange
 import numpy as np
-from pyoneer.math.linalg.sparse.csr import csr_matrix
-from pyoneer.mech.fem.utils import irows_icols_bulk_filtered
+from dewloosh.math.linalg.sparse.csr import csr_matrix
+from dewloosh.solid.fem.utils import irows_icols_bulk_filtered
 from numba import types as nbtypes
 from numba.typed import Dict as nbDict
 

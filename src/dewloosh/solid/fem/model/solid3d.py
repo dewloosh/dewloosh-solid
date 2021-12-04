@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mech.fem.model.solid import Solid
-from pyoneer.mech.material.utils import HMH_3d
+from dewloosh.solid.fem.model.solid import Solid
+from dewloosh.solid.material.utils import HMH_3d
 from numba import njit, prange
 import numpy as np
 from numpy import ndarray

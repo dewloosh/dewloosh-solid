@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mesh.polydata import PolyData
-from pyoneer.math.array import isboolarray, is1dfloatarray
-from pyoneer.mech.fem.preproc import fem_load_vector, fem_penalty_matrix_coo
-from pyoneer.math.linalg.sparse.csr import csr_matrix as csr
+from dewloosh.geom.polydata import PolyData
+from dewloosh.math.array import isboolarray, is1dfloatarray
+from dewloosh.solid.fem.preproc import fem_load_vector, fem_penalty_matrix_coo
+from dewloosh.math.linalg.sparse.csr import csr_matrix as csr
 import numpy as np
 
 
@@ -203,11 +203,11 @@ def fem_mesh_from_obj(*args, **kwargs):
 
 if __name__ == '__main__':
 
-    from pyoneer.math.linalg.frame import ReferenceFrame
-    from pyoneer.mech.material.hooke import Hooke3D
-    from pyoneer.mech.fem.elements.H8 import H8
-    from pyoneer.mesh.rgrid import rgrid
-    from pyoneer.mech.fem.linsolve import solve_standard_form, linsolve
+    from dewloosh.math.linalg.frame import ReferenceFrame
+    from dewloosh.solid.material.hooke import Hooke3D
+    from dewloosh.solid.fem.elements.H8 import H8
+    from dewloosh.geom.rgrid import rgrid
+    from dewloosh.solid.fem.linsolve import solve_standard_form, linsolve
     from scipy.sparse.linalg import spsolve
 
     """ Material """

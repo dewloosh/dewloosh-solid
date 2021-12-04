@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mesh.line import Line
-from pyoneer.mesh.utils import lengths_of_lines2
-from pyoneer.mech.fem.elem import FiniteElement
-from pyoneer.math.numint import GaussPoints as Gauss
-from pyoneer.mech.fem.model.beam import BernoulliBeam
+from dewloosh.geom.line import Line
+from dewloosh.geom.utils import lengths_of_lines2
+from dewloosh.solid.fem.elem import FiniteElement
+from dewloosh.math.numint import GaussPoints as Gauss
+from dewloosh.solid.fem.model.beam import BernoulliBeam
 import numpy as np
 from numpy import ndarray
 from numba import njit, prange

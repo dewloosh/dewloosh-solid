@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mech.fem.preproc import fem_coeff_matrix_coo
-from pyoneer.mech.fem.elements.utils import stiffness_matrix_bulk2
-from pyoneer.mech.fem.utils import topo_to_gnum, penalty_factor_matrix, \
+from dewloosh.solid.fem.preproc import fem_coeff_matrix_coo
+from dewloosh.solid.fem.elements.utils import stiffness_matrix_bulk2
+from dewloosh.solid.fem.utils import topo_to_gnum, penalty_factor_matrix, \
     approximation_matrix, nodal_approximation_matrix, nodal_compatibility_factors, \
         compatibility_factors_to_coo, compatibility_factors
-from pyoneer.mesh.utils import distribute_nodal_data, collect_nodal_data
+from dewloosh.geom.utils import distribute_nodal_data, collect_nodal_data
 from scipy.sparse import coo_matrix
 import numpy as np
 from collections import namedtuple

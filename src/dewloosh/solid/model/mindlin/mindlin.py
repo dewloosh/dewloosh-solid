@@ -1,4 +1,4 @@
-from pyoneer.mech.model.metashell import PreShell, PreLayer
+from dewloosh.solid.model.metashell import PreShell, PreLayer
 
 import numpy as np
 
@@ -320,7 +320,7 @@ class MindlinShellLayer(PreLayer):
 
 
 if __name__ == "__main__":
-    from pyoneer.mechanics.material import Lamina
+    from dewloosh.solidanics.material import Lamina
 
     material = Lamina(E=1000, nu=0.2, stype='shell')
     print(material.compliance_matrix())

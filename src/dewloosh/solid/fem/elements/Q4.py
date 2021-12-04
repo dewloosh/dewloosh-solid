@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mesh.Q4 import Q4 as Quadrilateral
-from pyoneer.mech.fem.elem import FiniteElement
-from pyoneer.math.numint import GaussPoints as Gauss
-from pyoneer.mesh.tri.triutils import area_tri_bulk
-from pyoneer.mesh.utils import cell_coords_bulk
-from pyoneer.mech.fem.model.membrane import Membrane
-from pyoneer.mech.fem.model.plate import Plate
+from dewloosh.geom.Q4 import Q4 as Quadrilateral
+from dewloosh.solid.fem.elem import FiniteElement
+from dewloosh.math.numint import GaussPoints as Gauss
+from dewloosh.geom.tri.triutils import area_tri_bulk
+from dewloosh.geom.utils import cell_coords_bulk
+from dewloosh.solid.fem.model.membrane import Membrane
+from dewloosh.solid.fem.model.plate import Plate
 import numpy as np
 from numba import njit
 __cache = True

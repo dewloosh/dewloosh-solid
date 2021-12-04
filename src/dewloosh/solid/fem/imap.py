@@ -4,7 +4,7 @@ Created on Mon Aug 23 11:35:26 2021
 
 @author: BENCE
 """
-from pyoneer.math.array import minmax
+from dewloosh.math.array import minmax
 from scipy.sparse import coo_matrix as coo_np
 from scipy.sparse import csr_matrix as csr_np
 from scipy.sparse import csc_matrix as csc_np

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mech.fem.mesh import FemMesh
-from pyoneer.mesh.utils import frame_of_plane
-from pyoneer.math.linalg.csys import CoordinateSystem as CS
+from dewloosh.solid.fem.mesh import FemMesh
+from dewloosh.geom.utils import frame_of_plane
+from dewloosh.math.linalg.csys import CoordinateSystem as CS
 import numpy as np
 
 

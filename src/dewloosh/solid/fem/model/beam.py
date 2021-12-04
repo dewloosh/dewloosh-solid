@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mech.fem.model.solid import Solid
-from pyoneer.mesh.utils import cell_coords_bulk
+from dewloosh.solid.fem.model.solid import Solid
+from dewloosh.geom.utils import cell_coords_bulk
 
 
 class BernoulliBeam(Solid):

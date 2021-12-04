@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mech.fem.mesh import FemMesh, fem_mesh_from_obj
-from pyoneer.mech.fem.linsolve import box_fem_data_bulk, unbox_lhs
-from pyoneer.mech.fem.utils import irows_icols_bulk
-from pyoneer.core.typing.wrap import Wrapper
-from pyoneer.math.array import repeat
+from dewloosh.solid.fem.mesh import FemMesh, fem_mesh_from_obj
+from dewloosh.solid.fem.linsolve import box_fem_data_bulk, unbox_lhs
+from dewloosh.solid.fem.utils import irows_icols_bulk
+from dewloosh.core.typing.wrap import Wrapper
+from dewloosh.math.array import repeat
 from scipy.sparse import coo_matrix as npcoo, csc_matrix as npcsc
 from scipy.sparse.linalg import spsolve
 from time import time

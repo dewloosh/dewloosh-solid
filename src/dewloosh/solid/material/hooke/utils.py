@@ -1,7 +1,8 @@
-from pyoneer.mech.material.hooke.sym import smat_sym_ortho_3d
-from pyoneer.math.function import Function
-from pyoneer.tools.kwargtools import getasany
-from pyoneer.mech.material.hooke.sym import smat_sym_ortho_3d
+# -*- coding: utf-8 -*-
+from dewloosh.solid.material.hooke.sym import smat_sym_ortho_3d
+from dewloosh.math.function import Function
+from dewloosh.core.tools.kwargtools import getasany
+from dewloosh.solid.material.hooke.sym import smat_sym_ortho_3d
 from scipy.optimize import minimize
 from sympy import symbols, Eq, solve, false, true
 from sympy.logic.boolalg import Boolean

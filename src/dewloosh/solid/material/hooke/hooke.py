@@ -1,10 +1,11 @@
-from pyoneer.math.function import Function
-from pyoneer.math.optimize import BinaryGeneticAlgorithm as BGA
-from pyoneer.math.linalg.tensor import ComplianceTensor
-from pyoneer.mech.material.hooke.sym import smat_sym_ortho_3d
-from pyoneer.mech.material.hooke.utils import standard_keys_ortho_3D, \
+# -*- coding: utf-8 -*-
+from dewloosh.math.function import Function
+from dewloosh.math.optimize import BinaryGeneticAlgorithm as BGA
+from dewloosh.math.linalg.tensor import ComplianceTensor
+from dewloosh.solid.material.hooke.sym import smat_sym_ortho_3d
+from dewloosh.solid.material.hooke.utils import standard_keys_ortho_3D, \
     group_mat_params, keys_ortho_3D_all, is_proper_ortho_3d
-from pyoneer.tools.kwargtools import getasany
+from dewloosh.core.tools.kwargtools import getasany
 import sympy as sy
 import numpy as np
 from scipy.optimize import minimize
@@ -254,7 +255,7 @@ class Hooke3D(ComplianceTensor):
 
 
 if __name__ == '__main__':
-    from pyoneer.math.linalg.frame import ReferenceFrame
+    from dewloosh.math.linalg.frame import ReferenceFrame
 
     """
     Test isotropic case.

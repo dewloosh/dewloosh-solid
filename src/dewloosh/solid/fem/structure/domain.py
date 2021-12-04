@@ -1,5 +1,5 @@
-from pyoneer.mech.fem.structure.structure import Structure
-from pyoneer.mech.fem.mesh2d import FemMesh2d
+from dewloosh.solid.fem.structure.structure import Structure
+from dewloosh.solid.fem.mesh2d import FemMesh2d
 
 
 class Domain(Structure):

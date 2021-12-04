@@ -4,4 +4,4 @@ Created on Mon Jul  2 18:31:06 2018
 
 @author: Bence
 """
-from pyoneer.mech.model.mindlin.mindlin import MindlinShell
+from dewloosh.solid.model.mindlin.mindlin import MindlinShell

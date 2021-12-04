@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mech.fem.elements.utils import element_dof_solution_bulk
+from dewloosh.solid.fem.elements.utils import element_dof_solution_bulk
 from numba import njit, prange
 import numpy as np
 from numpy import ndarray

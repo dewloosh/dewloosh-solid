@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from pyoneer.math.numint import GaussPoints as Gauss
-from pyoneer.mech.fem.model.solid3d import Solid3d
-from pyoneer.mesh.polyhedron import TriquadraticHexaHedron
-from pyoneer.mech.fem.elem import FiniteElement
+from dewloosh.math.numint import GaussPoints as Gauss
+from dewloosh.solid.fem.model.solid3d import Solid3d
+from dewloosh.geom.polyhedron import TriquadraticHexaHedron
+from dewloosh.solid.fem.elem import FiniteElement
 
 
 class H27(FiniteElement, Solid3d, TriquadraticHexaHedron):

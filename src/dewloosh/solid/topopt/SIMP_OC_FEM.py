@@ -1,15 +1,15 @@
-from pyoneer.mech.fem.utils import irows_icols_bulk
-from pyoneer.mech.fem.mesh import FemMesh
-from pyoneer.mech.fem.imap import index_mappers, box_spmatrix, \
+from dewloosh.solid.fem.utils import irows_icols_bulk
+from dewloosh.solid.fem.mesh import FemMesh
+from dewloosh.solid.fem.imap import index_mappers, box_spmatrix, \
     box_rhs, box_dof_numbering
-from pyoneer.math.array import matrixform
-from pyoneer.mech.topopt.utils import compliances_bulk, cells_around, \
+from dewloosh.math.array import matrixform
+from dewloosh.solid.topopt.utils import compliances_bulk, cells_around, \
     get_filter_factors, get_filter_factors_csr, weighted_stiffness_bulk, \
         filter_stiffness
-from pyoneer.mech.topopt.filter import sensitivity_filter, sensitivity_filter_csr
+from dewloosh.solid.topopt.filter import sensitivity_filter, sensitivity_filter_csr
 from scipy.sparse import coo_matrix as npcoo, csc_matrix as npcsc
 from scipy.sparse.linalg import spsolve
-from pyoneer.math.linalg.sparse.csr import csr_matrix as csr
+from dewloosh.math.linalg.sparse.csr import csr_matrix as csr
 import numpy as np
 from typing import Callable
 from time import time

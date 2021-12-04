@@ -1,9 +1,9 @@
-from pyoneer.mech.fem.imap import index_mappers, box_spmatrix, \
+from dewloosh.solid.fem.imap import index_mappers, box_spmatrix, \
     box_rhs, unbox_lhs, box_dof_numbering
-from pyoneer.math.array import matrixform
-from pyoneer.mech.fem.utils import weighted_stiffness_bulk, \
+from dewloosh.math.array import matrixform
+from dewloosh.solid.fem.utils import weighted_stiffness_bulk, \
     irows_icols_bulk
-from pyoneer.mech.fem.preproc import fem_penalty_matrix_coo
+from dewloosh.solid.fem.preproc import fem_penalty_matrix_coo
 import numpy as np
 from numpy import ndarray
 from scipy.sparse import csc_matrix as csc

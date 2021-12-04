@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from pyoneer.math.linalg import inv
-from pyoneer.mesh.utils import cell_coords_bulk
+from dewloosh.math.linalg import inv
+from dewloosh.geom.utils import cell_coords_bulk
 from typing import Callable
 from numba import njit, prange
 import numpy as np

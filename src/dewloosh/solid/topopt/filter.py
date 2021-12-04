@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from numba import njit, prange
 import numpy as np
-from pyoneer.math.linalg.sparse.csr import csr_matrix as csr
+from dewloosh.math.linalg.sparse.csr import csr_matrix as csr
 from numba.typed import Dict as nbDict
 __cache = True
 

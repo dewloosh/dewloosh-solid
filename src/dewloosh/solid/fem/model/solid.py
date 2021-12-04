@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mech.fem.utils import topo_to_gnum
-from pyoneer.mesh.utils import cell_coords_bulk
-from pyoneer.math.array import atleast2d
-from pyoneer.mech.fem.model.utils import model_strains, \
+from dewloosh.solid.fem.utils import topo_to_gnum
+from dewloosh.geom.utils import cell_coords_bulk
+from dewloosh.math.array import atleast2d
+from dewloosh.solid.fem.model.utils import model_strains, \
     stresses_from_strains
 
 

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mech.fem.elem import FiniteElement
-from pyoneer.mesh.T3 import T3 as Triangle
-from pyoneer.mech.fem.model.membrane import Membrane
-from pyoneer.mech.fem.model.plate import Plate
+from dewloosh.solid.fem.elem import FiniteElement
+from dewloosh.geom.T3 import T3 as Triangle
+from dewloosh.solid.fem.model.membrane import Membrane
+from dewloosh.solid.fem.model.plate import Plate
 import numpy as np
 
 

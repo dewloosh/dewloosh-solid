@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mech.topopt.utils import compliances_bulk, cells_around, \
+from dewloosh.solid.topopt.utils import compliances_bulk, cells_around, \
     get_filter_factors, get_filter_factors_csr, weighted_stiffness_bulk
-from pyoneer.mech.fem.structure import Structure
-from pyoneer.mech.topopt.filter import sensitivity_filter, \
+from dewloosh.solid.fem.structure import Structure
+from dewloosh.solid.topopt.filter import sensitivity_filter, \
     sensitivity_filter_csr
-from pyoneer.math.linalg.sparse.csr import csr_matrix as csr
+from dewloosh.math.linalg.sparse.csr import csr_matrix as csr
 import numpy as np
 from collections import namedtuple
 

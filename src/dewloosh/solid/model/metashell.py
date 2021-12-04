@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from pyoneer.core.types import Hierarchy
-from pyoneer.tools.kwargtools import getasany, allinkwargs, anyinkwargs
+from dewloosh.core.types import Hierarchy
+from dewloosh.core.tools.kwargtools import getasany, allinkwargs, anyinkwargs
 import numpy as np
 from abc import abstractmethod
 

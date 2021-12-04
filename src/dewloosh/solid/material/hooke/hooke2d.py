@@ -1,11 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Aug 16 16:50:30 2021
-
-@author: BENCE
-"""
-
-from pyoneer.mech.material.hooke.hooke import Hooke3D
+from dewloosh.solid.material.hooke.hooke import Hooke3D
 import numpy as np
 
 
@@ -90,8 +84,8 @@ def Lamina(*args, plane_strain=False, stype='shell', **kwargs):
 
 if __name__ == '__main__':
 
-    from pyoneer.math.linalg.frame import ReferenceFrame
-    from pyoneer.math.linalg import Tensor3333 as Tensor
+    from dewloosh.math.linalg.frame import ReferenceFrame
+    from dewloosh.math.linalg import Tensor3333 as Tensor
     import sympy as sy
 
     A = ReferenceFrame()

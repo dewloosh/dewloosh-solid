@@ -1,4 +1,5 @@
-from pyoneer.mech.model.metashell import PreShell, PreLayer
+# -*- coding: utf-8 -*-
+from dewloosh.solid.model.metashell import PreShell, PreLayer
 import numpy as np
 
 __all__ = ['Membrane']

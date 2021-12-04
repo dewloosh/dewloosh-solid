@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from pyoneer.math.numint import GaussPoints as Gauss
-from pyoneer.mech.fem.model.solid3d import Solid3d
-from pyoneer.mesh.H8 import H8 as HexaHedron
-from pyoneer.mech.fem.elem import FiniteElement
+from dewloosh.math.numint import GaussPoints as Gauss
+from dewloosh.solid.fem.model.solid3d import Solid3d
+from dewloosh.geom.H8 import H8 as HexaHedron
+from dewloosh.solid.fem.elem import FiniteElement
 
 
 class H8(HexaHedron, Solid3d, FiniteElement):

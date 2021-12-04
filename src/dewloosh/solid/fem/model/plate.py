@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from pyoneer.mech.fem.model.surface import Surface
-from pyoneer.mech.material.utils import HMH_S
+from dewloosh.solid.fem.model.surface import Surface
+from dewloosh.solid.material.utils import HMH_S
 from numba import njit, prange
 import numpy as np
 from numpy import ndarray

@@ -1,5 +1,6 @@
+# -*- coding: utf-8 -*-
 import sympy as sy
-from pyoneer.math.linalg.tensor import ComplianceTensor
+from dewloosh.math.linalg.tensor import ComplianceTensor
 
 
 __all__ = ['smat_sym_ortho_3d', 'cmat_sym_ortho_3d']
