@@ -1,0 +1,30 @@
+# -*- coding: utf-8 -*-
+from numba import njit, prange
+import numpy as np
+from pyoneer.math.linalg.sparse.csr import csr_matrix as csr
+from numba.typed import Dict as nbDict
+__cache = True
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def sensitivity_filter(sens: np.ndarray, dens: np.ndarray,
+                       neighbours: nbDict, factors: dict):
+    nE = len(dens)
+    res = np.zeros_like(sens)
+    for iE in prange(nE):
+        adj = neighbours[iE]
+        res[iE] = np.sum(factors[iE] * dens[adj] * sens[adj]) / \
+            (dens[iE] * np.sum(factors[iE]))
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def sensitivity_filter_csr(sens: np.ndarray, dens: np.ndarray,
+                           neighbours: csr, factors: dict):
+    nE = len(dens)
+    res = np.zeros_like(sens)
+    for iE in prange(nE):
+        adj, _ = neighbours.row(iE)
+        res[iE] = np.sum(factors[iE] * dens[adj] * sens[adj]) / \
+            (dens[iE] * np.sum(factors[iE]))
+    return res
