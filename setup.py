@@ -24,8 +24,8 @@ with open('requirements.txt') as f:
     required = f.read().splitlines()
 
 setup(
-	name="dewloosh.geom",
-    version=get_version("src/Dewloosh/geom/__init__.py"),                        
+	name="dewloosh.solid",
+    version=get_version("src/Dewloosh/solid/__init__.py"),                        
     author="dewloosh",
     author_email = 'dewloosh@gmail.com',                   
     description="A package to build and manage polygonal data",

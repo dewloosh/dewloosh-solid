@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.model.metashell import PreShell, PreLayer
+from dewloosh.solid.model.metashell import Surface, Layer
 import numpy as np
 
 __all__ = ['Membrane']
 
 
-class Membrane(PreShell):
+class Membrane(Surface):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, layertype=MembraneLayer, **kwargs)
@@ -59,7 +59,7 @@ class Membrane(PreShell):
             return res
 
 
-class MembraneLayer(PreLayer):
+class MembraneLayer(Layer):
 
     __loc__ = [-1., 1.]
     __shape__ = (3, 3)

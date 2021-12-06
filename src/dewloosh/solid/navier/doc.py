@@ -190,7 +190,7 @@ if __name__ == '__main__':
             doc.append(expr_to_ltx(r'v_x(x, y)', sy.latex(vx)))
             doc.append(expr_to_ltx(r'v_y(x, y)', sy.latex(vy)))
 
-        # Left hand sides of equilibrium equations. The signs of the equations
+        # Equilibrium equations. The signs of the equations
         # is selected such, that the coefficients of the load functions on the
         # right-hand sides admit positive signs according to global axes.
         ###
@@ -208,7 +208,7 @@ if __name__ == '__main__':
             doc.append(NoEscape(r'Equilibrium of forces along global $z$ :'))
             doc.append(expr_to_ltx_breqn(sy.latex(lhs_fz), 'f_z(x, y)'))
 
-        # trial solution and substitution
+        # Boundary Conditions and Trial Solution
         with doc.create(Subsection('Boundary Conditions and Trial Solution')):
             mn = m, n = symbols('m n', integer = True, positive = True)
             coeffs = Amn, Bmn, Cmn = symbols('A_{mn} B_{mn} C_{mn}', real = True)

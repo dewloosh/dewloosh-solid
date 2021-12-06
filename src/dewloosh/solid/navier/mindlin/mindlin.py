@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from dewloosh.math.linalg import linspace1d
-from dewloosh.math.array import atleast1d, atleast2d, atleast3d, \
-    atleast4d, ascont, clip1d
+from dewloosh.math.array import clip1d
 from numpy.linalg import inv
 from numba import njit, prange
-from collections import Iterable
-from dewloosh.math.array import atleast3d
 __cache = True
 
 
@@ -21,7 +18,7 @@ def z_to_shear_factors(z, sfx, sfy):
     return np.dot(monoms, sfx), np.dot(monoms, sfy)
 
 
-@njit(nogil = True, cache = __cache)
+@njit(nogil=True, cache=__cache)
 def layers_of_points(points : np.ndarray, bounds : np.ndarray):
     nL = bounds.shape[0]
     bins = np.zeros((nL+1,), dtype = points.dtype)
@@ -31,7 +28,7 @@ def layers_of_points(points : np.ndarray, bounds : np.ndarray):
 
 
 @njit(['f8[:, :](f8[:, :], i8)', 'f4[:, :](f4[:, :], i8)'],
-      nogil = True, parallel = True, cache = __cache)
+      nogil=True, parallel=True, cache=__cache)
 def points_of_layers(bounds : np.ndarray, nppl = 3):
     nL = bounds.shape[0]
     res = np.zeros((nL, nppl), dtype = bounds.dtype)
@@ -40,7 +37,7 @@ def points_of_layers(bounds : np.ndarray, nppl = 3):
     return res
 
 
-@njit(nogil = True, parallel = True, cache = __cache)
+@njit(nogil=True, parallel=True, cache=__cache)
 def rotation_matrices(angles : float, dtype = np.float32):
     """
     Returns transformation matrices T_126 and T_45 for each angle.
@@ -67,7 +64,7 @@ def rotation_matrices(angles : float, dtype = np.float32):
     return T_126.astype(dtype), T_45.astype(dtype)
 
 
-@njit(nogil = True, parallel = True, cache = __cache)
+@njit(nogil=True, parallel=True, cache=__cache)
 def material_stiffness_matrices(C_126 : np.ndarray, C_45 : np.ndarray,
                                 angles : np.ndarray, dtype = np.float32):
     """
@@ -88,11 +85,11 @@ def material_stiffness_matrices(C_126 : np.ndarray, C_45 : np.ndarray,
     return C_126_g.astype(dtype), C_45_g.astype(dtype)
 
 
-@njit(nogil = True, parallel = True, cache = __cache)
+@njit(nogil=True, parallel=False, fastmath=True, cache=__cache)
 def shear_factors_MT(ABDS : np.ndarray, C_126 : np.ndarray,
                      z : np.ndarray, dtype = np.float32):
     """
-    # FIXME Should work with parallel = True, does not. Reason is
+    # Does not work with parallel = True. Reason is
     propably a race condition due to using explicit parallel loops.
     """
     A11 = ABDS[0, 0]
@@ -140,8 +137,8 @@ def shear_factors_MT(ABDS : np.ndarray, C_126 : np.ndarray,
 def shear_factors_ST(ABDS : np.ndarray, C_126 : np.ndarray,
                      z : np.ndarray, dtype = np.float32):
     """
-    Single-thread implementation of calculation of shear factors for
-    multi-layer Mindlin shells.
+    Single-thread, sequential implementation of calculation 
+    of shear factors for multi-layer Mindlin shells.
     """
     A11 = ABDS[0, 0]
     B11 = ABDS[0, 3]
@@ -237,8 +234,8 @@ def shear_correction_data(ABDS : np.ndarray, C_126 : np.ndarray,
 
 @njit(nogil = True, parallel = True, cache = __cache)
 def stiffness_data_Mindlin(C_126 : np.ndarray, C_45 : np.ndarray,
-                           angles : np.ndarray, bounds : np.ndarray, nZ = 3,
-                           dtype = np.float32):
+                           angles : np.ndarray, bounds : np.ndarray, 
+                           nZ = 3, dtype = np.float32):
     """
     FIXME Call
         Ks, sf = shear_correction_data(ABDS, C_126_g, C_45_g, bounds, dtype)

@@ -1,11 +1,11 @@
-from dewloosh.solid.model.metashell import PreShell, PreLayer
+from dewloosh.solid.model.metashell import Surface, Layer
 
 import numpy as np
 
 __all__ = ['MindlinShell']
 
 
-class MindlinShell(PreShell):
+class MindlinShell(Surface):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, layertype=MindlinShellLayer, **kwargs)
@@ -200,7 +200,7 @@ class MindlinShell(PreShell):
             return res
 
 
-class MindlinShellLayer(PreLayer):
+class MindlinShellLayer(Layer):
 
     __loc__ = [-1., 0., 1.]
 
@@ -320,7 +320,7 @@ class MindlinShellLayer(PreLayer):
 
 
 if __name__ == "__main__":
-    from dewloosh.solidanics.material import Lamina
+    from dewloosh.solid.material import Lamina
 
     material = Lamina(E=1000, nu=0.2, stype='shell')
     print(material.compliance_matrix())

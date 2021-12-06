@@ -2,7 +2,7 @@
 import numpy as np
 from dewloosh.solid.model.mindlin.utils import stiffness_data_Mindlin, \
     pproc_Mindlin_3D
-from numpy import sin, cos, pi, ndarray as nparray
+from numpy import sin, cos, ndarray as nparray, pi as PI
 from numba import njit, prange
 from dewloosh.math.array import atleast2d, atleast3d, itype_of_ftype
 
@@ -28,7 +28,7 @@ def pproc_Mindlin_Navier(ABDS : nparray, points : nparray, *args,
                                     np.array(shape).astype(itype),
                                     atleast2d(points)[:, :2].astype(dtype),
                                     atleast3d(solution).astype(dtype),
-                                    ABDS[:, 3:6, 3:6], ABDS[:, 6:, 6:], dtype)
+                                    ABDS[:, :3, :3], ABDS[:, 3:, 3:])
 
     # 3d postproc
     assert res2d is not None
@@ -47,8 +47,41 @@ def pproc_Mindlin_Navier(ABDS : nparray, points : nparray, *args,
         return res2d if not squeeze else np.squeeze(res2d)
 
 
-@njit(nogil=True, parallel=True, cache=True)
-def pproc_Mindlin_Navier_2D(size : nparray, shape : nparray, points : nparray,
+@njit(nogil=True, cache=True)
+def _pproc_Mindlin_2D(size, m: int, n:int, 
+                      xp: float, yp:float, solution : nparray, 
+                      D: nparray, S: nparray):
+    Lx, Ly = size
+    Amn, Bmn, Cmn = solution
+    D11, D12, D22, D66 = D[0, 0], D[0, 1], D[1, 1], D[2, 2]
+    S44, S55 = S[0, 0], S[1, 1]
+    return np.array(
+        [Cmn*sin(PI*m*xp/Lx)*sin(PI*n*yp/Ly), 
+         Amn*sin(PI*m*xp/Lx)*cos(PI*n*yp/Ly), 
+         Bmn*sin(PI*n*yp/Ly)*cos(PI*m*xp/Lx), 
+         -PI*Bmn*m*sin(PI*m*xp/Lx)*sin(PI*n*yp/Ly)/Lx, 
+         PI*Amn*n*sin(PI*m*xp/Lx)*sin(PI*n*yp/Ly)/Ly, 
+         -PI*Amn*m*cos(PI*m*xp/Lx)*cos(PI*n*yp/Ly)/Lx + 
+         PI*Bmn*n*cos(PI*m*xp/Lx)*cos(PI*n*yp/Ly)/Ly, 
+         Bmn*sin(PI*n*yp/Ly)*cos(PI*m*xp/Lx) + 
+         PI*Cmn*m*sin(PI*n*yp/Ly)*cos(PI*m*xp/Lx)/Lx, 
+         -Amn*sin(PI*m*xp/Lx)*cos(PI*n*yp/Ly) + 
+         PI*Cmn*n*sin(PI*m*xp/Lx)*cos(PI*n*yp/Ly)/Ly, 
+         PI*Amn*D12*n*sin(PI*m*xp/Lx)*sin(PI*n*yp/Ly)/Ly - 
+         PI*Bmn*D11*m*sin(PI*m*xp/Lx)*sin(PI*n*yp/Ly)/Lx, 
+         PI*Amn*D22*n*sin(PI*m*xp/Lx)*sin(PI*n*yp/Ly)/Ly - 
+         PI*Bmn*D12*m*sin(PI*m*xp/Lx)*sin(PI*n*yp/Ly)/Lx, 
+         -PI*Amn*D66*m*cos(PI*m*xp/Lx)*cos(PI*n*yp/Ly)/Lx + 
+         PI*Bmn*D66*n*cos(PI*m*xp/Lx)*cos(PI*n*yp/Ly)/Ly, 
+         Bmn*S55*sin(PI*n*yp/Ly)*cos(PI*m*xp/Lx) + 
+         PI*Cmn*S55*m*sin(PI*n*yp/Ly)*cos(PI*m*xp/Lx)/Lx, 
+         -Amn*S44*sin(PI*m*xp/Lx)*cos(PI*n*yp/Ly) + 
+         PI*Cmn*S44*n*sin(PI*m*xp/Lx)*cos(PI*n*yp/Ly)/Ly]
+    )
+
+
+@njit(nogil=True, parallel=False, fastmath=True, cache=True)
+def pproc_Mindlin_Navier_2D(size, shape : nparray, points : nparray,
                             solution : nparray, D : nparray, S : nparray):
     """
     JIT-compiled function that calculates post-processing quantities 
@@ -60,13 +93,13 @@ def pproc_Mindlin_Navier_2D(size : nparray, shape : nparray, points : nparray,
         (Lx, Ly) : size of domain
         
     shape : tuple 
-        (nX, nY) : number of harmonic terms involved in x and y
+        (nxp, nY) : number of harmonic terms involved in xp and yp
                    directions
     
     points : numpy.ndarray[nP, 2] 
         2d array of point coordinates
     
-    solution : numpy.ndarray[nRHS, nX * nY, 3] 
+    solution : numpy.ndarray[nRHS, nxp * nY, 3] 
         results of a Navier solution as a 3d array
     
     D : numpy.ndarray[nLHS, 3, 3] 
@@ -79,62 +112,38 @@ def pproc_Mindlin_Navier_2D(size : nparray, shape : nparray, points : nparray,
     -------
     numpy.ndarray[nLHS, nRHS, nP, ...] 
         numpy array of post-processing items. The indices along 
-        the last axis denote the following quantities:
+        the last axpis denote the following quantities:
         
             0 : displacement z
-            1 : rotation x
-            2 : rotation y
-            3 : curvature x
-            4 : curvature y
-            5 : curvature xy
-            6 : shear strain xz
+            1 : rotation xp
+            2 : rotation yp
+            3 : curvature xp
+            4 : curvature yp
+            5 : curvature xpy
+            6 : shear strain xpz
             7 : shear strain yz
-            8 : moment x
-            9 : moment y
-            10 : moment xy
-            11 : shear force x
-            12 : shear force y
+            8 : moment xp
+            9 : moment yp
+            10 : moment xpy
+            11 : shear force xp
+            12 : shear force yp
     """
-    Lx, Ly = size
-    nX, nY = shape
+    M, N = shape
     nLHS = D.shape[0]
     nP = points.shape[0]
     nRHS = solution.shape[0]
-    res2d = np.zeros((nLHS, nRHS, nP, 11), dtype=D.dtype)
-    scmn = gen_sincos_mn(size, shape, points)
-    for m in prange(nX):
-        cx = pi * (m + 1) / Lx
-        for n in prange(nY):
-            cy = pi * (n + 1) / Ly
-            iMN = m * nY + n
+    res2d = np.zeros((nLHS, nRHS, nP, 13), dtype=D.dtype)
+    for m in range(M):
+        for n in range(N):
+            iMN = m * N + n
             for iRHS in prange(nRHS):
-                Amn, Bmn, Cmn = solution[iRHS, iMN, :]
                 for iP in prange(nP):
-                    Sm = scmn[iMN, iP, 0]
-                    Cm = scmn[iMN, iP, 1]
-                    Sn = scmn[iMN, iP, 2]
-                    Cn = scmn[iMN, iP, 3]
-                    res2d[:, iRHS, iP, 0] += Cmn * Sm * Sn
-                    res2d[:, iRHS, iP, 1] += Amn * Cm * Sn
-                    res2d[:, iRHS, iP, 2] += Bmn * Sm * Cn
-                    res2d[:, iRHS, iP, 3] += cx * Amn * Sm * Sn
-                    res2d[:, iRHS, iP, 4] += cy * Bmn * Sm * Sn
-                    res2d[:, iRHS, iP, 5] -= (Amn * cx + Bmn + cy) * Cm * Cn
-                    res2d[:, iRHS, iP, 6] += (Cmn * cx - Amn) * Sn * Cm
-                    res2d[:, iRHS, iP, 7] += (Cmn * cy - Bmn) * Sm * Cn
+                    xp, yp = points[iP, :2]            
                     for iLHS in prange(nLHS):
-                        res2d[iLHS, iRHS, iP, 8] += Sm * Sn * \
-                            (D[iLHS, 0, 0] * Amn * cx +
-                             D[iLHS, 0, 1] * Bmn * cy)
-                        res2d[iLHS, iRHS, iP, 9] += Sm * Sn * \
-                            (D[iLHS, 0, 1] * Amn * cx +
-                             D[iLHS, 1, 1] * Bmn * cy)
-                        res2d[iLHS, iRHS, iP, 10] -= Cm * Cn * \
-                            D[iLHS, 2, 2] * (Amn * cy + Bmn * cx)
-                        res2d[iLHS, iRHS, iP, 11] += Sn * Cm * \
-                            S[iLHS, 0, 0] * (Cmn * cx - Amn)
-                        res2d[iLHS, iRHS, iP, 12] += Sm * Cn * \
-                            S[iLHS, 1, 1] * (Cmn * cy - Bmn)
+                        res2d[iLHS, iRHS, iP, :] += \
+                            _pproc_Mindlin_2D(size, m+1, n+1, xp, yp, 
+                                              solution[iRHS, iMN], D[iLHS], 
+                                              S[iLHS])
     return res2d
 
 
@@ -156,41 +165,18 @@ def pproc_Mindlin_Navier_3D(ABDS : nparray,
     return res3d
 
 
-@njit(nogil=True, parallel=True, cache=True)
-def gen_sincos_mn(size : nparray, shape : nparray, points : nparray):
-    """
-    JIT compiled convinience function to avoid repeated evaluation of 
-    intermediate quantities.
-    """
-    Lx, Ly = size
-    nX, nY = shape
-    nP = points.shape[0]
-    sincosmn = np.zeros((nX * nY, nP, 4), dtype=points.dtype)
-    for m in prange(1, nX + 1):
-        argm = m * pi / Lx
-        for n in prange(1, nY + 1):
-            argn = n * pi / Ly
-            iMN = (m - 1) * nY + n - 1
-            for iP in prange(nP):
-                sincosmn[iMN, iP, 0] = sin(argm * points[iP, 0])
-                sincosmn[iMN, iP, 1] = cos(argm * points[iP, 0])
-                sincosmn[iMN, iP, 2] = sin(argn * points[iP, 1])
-                sincosmn[iMN, iP, 3] = cos(argn * points[iP, 1])
-    return sincosmn
-
-
 def shell_stiffness_data(shell):
-    shell.stiffness_matrix()
+    shell.stiffness_matrixp()
     layers = shell.layers()
     C_126, C_45 = [], []
     for layer in layers:
-        Cm = layer.material.stiffness_matrix()
+        Cm = layer.material.stiffness_matrixp()
         C_126.append(Cm[0:3, 0:3])
         C_45.append(Cm[3:, 3:])
     C_126 = np.stack(C_126)
     C_45 = np.stack(C_45)
     angles = np.stack([layer.angle for layer in layers])
-    bounds = np.stack([[layer.tmin, layer.tmax]
+    bounds = np.stack([[layer.tmin, layer.tmaxp]
                        for layer in layers])
     ABDS, shear_corrections, shear_factors = \
         stiffness_data_Mindlin(C_126, C_45, angles, bounds)
