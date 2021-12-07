@@ -7,21 +7,21 @@ from numba import njit, prange
 __cache = True
 
 
-@njit(nogil = True, cache = __cache)
-def glob_to_loc_layer(point : np.ndarray, bounds : np.ndarray):
+@njit(nogil=True, cache=__cache)
+def glob_to_loc_layer(point: np.ndarray, bounds: np.ndarray):
     return (point[2] - bounds[0]) / (bounds[1] - bounds[0])
 
 
-@njit(nogil = True, cache = __cache)
+@njit(nogil=True, cache=__cache)
 def z_to_shear_factors(z, sfx, sfy):
-    monoms = np.array([1, z, z**2], dtype = sfx.dtype)
+    monoms = np.array([1, z, z**2], dtype=sfx.dtype)
     return np.dot(monoms, sfx), np.dot(monoms, sfy)
 
 
 @njit(nogil=True, cache=__cache)
-def layers_of_points(points : np.ndarray, bounds : np.ndarray):
+def layers_of_points(points: np.ndarray, bounds: np.ndarray):
     nL = bounds.shape[0]
-    bins = np.zeros((nL+1,), dtype = points.dtype)
+    bins = np.zeros((nL+1,), dtype=points.dtype)
     bins[0] = bounds[0, 0]
     bins[1:] = bounds[:, 1]
     return clip1d(np.digitize(points[:, 2], bins) - 1, 0, nL-1)
@@ -29,23 +29,23 @@ def layers_of_points(points : np.ndarray, bounds : np.ndarray):
 
 @njit(['f8[:, :](f8[:, :], i8)', 'f4[:, :](f4[:, :], i8)'],
       nogil=True, parallel=True, cache=__cache)
-def points_of_layers(bounds : np.ndarray, nppl = 3):
+def points_of_layers(bounds: np.ndarray, nppl=3):
     nL = bounds.shape[0]
-    res = np.zeros((nL, nppl), dtype = bounds.dtype)
+    res = np.zeros((nL, nppl), dtype=bounds.dtype)
     for iL in prange(nL):
         res[iL] = linspace1d(bounds[iL, 0], bounds[iL, 1], nppl)
     return res
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def rotation_matrices(angles : float, dtype = np.float32):
+def rotation_matrices(angles: float, dtype=np.float32):
     """
     Returns transformation matrices T_126 and T_45 for each angle.
     Angles are expected in radians.
     """
     nL = len(angles)
-    T_126 = np.zeros((nL, 3, 3), dtype = dtype)
-    T_45 = np.zeros((nL, 2, 2), dtype = dtype)
+    T_126 = np.zeros((nL, 3, 3), dtype=dtype)
+    T_45 = np.zeros((nL, 2, 2), dtype=dtype)
     for iL in prange(nL):
         a = angles[iL] * np.pi / 180
         T_126[iL, 0, 0] = np.cos(a)**2
@@ -65,8 +65,8 @@ def rotation_matrices(angles : float, dtype = np.float32):
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def material_stiffness_matrices(C_126 : np.ndarray, C_45 : np.ndarray,
-                                angles : np.ndarray, dtype = np.float32):
+def material_stiffness_matrices(C_126: np.ndarray, C_45: np.ndarray,
+                                angles: np.ndarray, dtype=np.float32):
     """
     Returns the components of the material stiffness matrices C_126 and C_45
     in the global system.
@@ -86,8 +86,8 @@ def material_stiffness_matrices(C_126 : np.ndarray, C_45 : np.ndarray,
 
 
 @njit(nogil=True, parallel=False, fastmath=True, cache=__cache)
-def shear_factors_MT(ABDS : np.ndarray, C_126 : np.ndarray,
-                     z : np.ndarray, dtype = np.float32):
+def shear_factors_MT(ABDS: np.ndarray, C_126: np.ndarray,
+                     z: np.ndarray, dtype=np.float32):
     """
     # Does not work with parallel = True. Reason is
     propably a race condition due to using explicit parallel loops.
@@ -103,7 +103,7 @@ def shear_factors_MT(ABDS : np.ndarray, C_126 : np.ndarray,
     # calculate shear factors
     eta_x = 1 / (A11 * D11 - B11**2)
     eta_y = 1 / (A22 * D22 - B22**2)
-    shear_factors = np.zeros((nL, 2, 3), dtype = dtype)
+    shear_factors = np.zeros((nL, 2, 3), dtype=dtype)
 
     for iL in prange(nL-1):
         for iP in prange(2):
@@ -133,9 +133,9 @@ def shear_factors_MT(ABDS : np.ndarray, C_126 : np.ndarray,
     return shear_factors.astype(dtype)
 
 
-@njit(nogil = True, cache = __cache)
-def shear_factors_ST(ABDS : np.ndarray, C_126 : np.ndarray,
-                     z : np.ndarray, dtype = np.float32):
+@njit(nogil=True, cache=__cache)
+def shear_factors_ST(ABDS: np.ndarray, C_126: np.ndarray,
+                     z: np.ndarray, dtype=np.float32):
     """
     Single-thread, sequential implementation of calculation 
     of shear factors for multi-layer Mindlin shells.
@@ -151,7 +151,7 @@ def shear_factors_ST(ABDS : np.ndarray, C_126 : np.ndarray,
     # calculate shear factors
     eta_x = 1 / (A11 * D11 - B11**2)
     eta_y = 1 / (A22 * D22 - B22**2)
-    shear_factors = np.zeros((nL, 2, 3), dtype = dtype)
+    shear_factors = np.zeros((nL, 2, 3), dtype=dtype)
 
     for iL in range(nL):
         zi = z[iL]
@@ -176,10 +176,10 @@ def shear_factors_ST(ABDS : np.ndarray, C_126 : np.ndarray,
     return shear_factors.astype(dtype)
 
 
-@njit(nogil = True, parallel = True, cache = __cache)
-def shear_correction_data(ABDS : np.ndarray, C_126 : np.ndarray,
-                          C_45 : np.ndarray, bounds : np.ndarray,
-                          dtype = np.float32):
+@njit(nogil=True, parallel=True, cache=__cache)
+def shear_correction_data(ABDS: np.ndarray, C_126: np.ndarray,
+                          C_45: np.ndarray, bounds: np.ndarray,
+                          dtype=np.float32):
     """
     FIXME : Results are OK, but a bit slower than expected when measured
     against the pure python implementation.
@@ -194,10 +194,10 @@ def shear_correction_data(ABDS : np.ndarray, C_126 : np.ndarray,
     shear_factors = shear_factors_ST(ABDS, C_126, z, dtype)
 
     # compile shear factors
-    sf = np.zeros((nL, 2, 3), dtype = dtype)
+    sf = np.zeros((nL, 2, 3), dtype=dtype)
     for iL in prange(nL):
         monoms_inv = inv(np.array([[1, z, z**2] for z in z[iL]],
-                                  dtype = dtype))
+                                  dtype=dtype))
         sf[iL, 0] = monoms_inv @ shear_factors[iL, 0]
         sf[iL, 1] = monoms_inv @ shear_factors[iL, 1]
 
@@ -207,8 +207,8 @@ def shear_correction_data(ABDS : np.ndarray, C_126 : np.ndarray,
     pot_c_y = 0.5 / ABDS[7, 7]
 
     # positions and weights of Gauss-points
-    gP = np.array([-np.sqrt(3/5), 0, np.sqrt(3/5)], dtype = dtype)
-    gW = np.array([5/9, 8/9, 5/9], dtype = dtype)
+    gP = np.array([-np.sqrt(3/5), 0, np.sqrt(3/5)], dtype=dtype)
+    gW = np.array([5/9, 8/9, 5/9], dtype=dtype)
 
     # potential energy using parabolic stress distribution
     # and unit shear force
@@ -220,7 +220,7 @@ def shear_correction_data(ABDS : np.ndarray, C_126 : np.ndarray,
         for iG in prange(3):
             ziG = 0.5 * ((bounds[iL, 1] + bounds[iL, 0]) +
                          gP[iG] * (bounds[iL, 1] - bounds[iL, 0]))
-            monoms = np.array([1, ziG, ziG**2], dtype = dtype)
+            monoms = np.array([1, ziG, ziG**2], dtype=dtype)
             sfx = np.dot(monoms, sf[iL, 0])
             sfy = np.dot(monoms, sf[iL, 1])
             pot_p_x += 0.5 * (sfx**2) * dJ * gW[iG] / Gxi
@@ -232,16 +232,16 @@ def shear_correction_data(ABDS : np.ndarray, C_126 : np.ndarray,
         shear_factors.astype(dtype)
 
 
-@njit(nogil = True, parallel = True, cache = __cache)
-def stiffness_data_Mindlin(C_126 : np.ndarray, C_45 : np.ndarray,
-                           angles : np.ndarray, bounds : np.ndarray, 
-                           nZ = 3, dtype = np.float32):
+@njit(nogil=True, parallel=True, cache=__cache)
+def stiffness_data_Mindlin(C_126: np.ndarray, C_45: np.ndarray,
+                           angles: np.ndarray, bounds: np.ndarray,
+                           nZ=3, dtype=np.float32):
     """
     FIXME Call
         Ks, sf = shear_correction_data(ABDS, C_126_g, C_45_g, bounds, dtype)
     is a bit slow for some reason.
     """
-    ABDS = np.zeros((8, 8), dtype = dtype)
+    ABDS = np.zeros((8, 8), dtype=dtype)
     nL = C_126.shape[0]
     bounds = bounds.astype(dtype)
     C_126_g, C_45_g = material_stiffness_matrices(C_126, C_45, angles, dtype)
@@ -263,22 +263,22 @@ if __name__ == '__main__':
     from dewloosh.math.array import repeat
     from time import time
 
-    kdef = 0.8  #Service class 1
+    kdef = 0.8  # Service class 1
     C24 = {
-        'E1' : 11000000. / (1 + kdef),
-        'E2' : 11000000. / 20 / (1 + kdef),
-        'G12' : 690000. / (1 + kdef),
-        'G23' : 690000. / 10 / (1 + kdef),
-        'nu12' : 0.4,
-        }
+        'E1': 11000000. / (1 + kdef),
+        'E2': 11000000. / 20 / (1 + kdef),
+        'G12': 690000. / (1 + kdef),
+        'G23': 690000. / 10 / (1 + kdef),
+        'nu12': 0.4,
+    }
 
-    material = Lamina(**C24, stype = 'shell')
+    material = Lamina(**C24, stype='shell')
     shell = Shell()
-    layer_1 = shell.Layer(m = material, t = 0.04, a = 0.)
-    layer_2 = shell.Layer(m = material, t = 0.02, a = 90.)
-    layer_3 = shell.Layer(m = material, t = 0.02, a = 0.)
-    layer_4 = shell.Layer(m = material, t = 0.02, a = 90.)
-    layer_5 = shell.Layer(m = material, t = 0.04, a = 0.)
+    layer_1 = shell.Layer(m=material, t=0.04, a=0.)
+    layer_2 = shell.Layer(m=material, t=0.02, a=90.)
+    layer_3 = shell.Layer(m=material, t=0.02, a=0.)
+    layer_4 = shell.Layer(m=material, t=0.02, a=90.)
+    layer_5 = shell.Layer(m=material, t=0.04, a=0.)
     shell.add_layers(layer_1, layer_2, layer_3, layer_4, layer_5)
     ABDS = shell.stiffness_matrix()
 
@@ -293,7 +293,7 @@ if __name__ == '__main__':
     nppl = 3
     pol = points_of_layers(bounds, nppl)
 
-    def stiffness_matrix(shell, material, dtype = np.float32):
+    def stiffness_matrix(shell, material, dtype=np.float32):
         Cm = material.stiffness_matrix()
         Cm_126 = Cm[0:3, 0:3]
         Cm_45 = Cm[3:, 3:]

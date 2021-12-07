@@ -2,7 +2,7 @@
 from dewloosh.math.linalg.linalg import inv3x3
 from dewloosh.core.squeeze import squeeze
 import numpy as np
-from numpy.linalg import solve as npsolve
+from dewloosh.math.linalg._solve import npsolve
 from numpy import ndarray
 from numba import njit, prange
 
@@ -35,5 +35,6 @@ def linsolve_M(A: ndarray, B: ndarray):
     for i in prange(nRHS):
         for j in prange(nLHS):
             for k in prange(nMN):
-                res[i, j, k] = inv3x3(A[j, k]) @ B[i, k]
+                #res[i, j, k] = inv3x3(A[j, k]) @ B[i, k]
+                res[i, j, k] = npsolve(A[j, k], B[i, k]) 
     return res
