@@ -3,6 +3,8 @@ from dewloosh.core.types import Hierarchy
 from dewloosh.core.types.defaultdict import parsedicts_addr
 from dewloosh.core.tools import allinkwargs, popfromdict
 from dewloosh.core.tools import float_to_str_sig
+from dewloosh.math.array import atleast2d, atleast3d
+from dewloosh.core.squeeze import squeeze
 import json
 import numpy as np
 from numpy import sin, cos, ndarray, pi as PI
@@ -15,17 +17,19 @@ class LoadGroup(Hierarchy):
     def __init__(self, *args, Navier=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._Navier = Navier
-        #self._type = kwargs.pop('type', self.__class__._typestr_)
     
     def Navier(self):
         return self.root()._Navier
     
-    def blocks(self, *args, inclusive=False, blocktype=None, deep=True, **kwargs):
+    def blocks(self, *args, inclusive=False, blocktype=None, 
+               deep=True, **kwargs):
         dtype = LoadGroup if blocktype is None else blocktype
-        return self.containers(self, inclusive=inclusive, dtype=dtype, deep=deep)
+        return self.containers(self, inclusive=inclusive, 
+                               dtype=dtype, deep=deep)
 
     def load_cases(self, *args, **kwargs):
-        return filter(lambda i: i.__class__._typestr_ is not None, self.blocks(*args, **kwargs))
+        return filter(lambda i: i.__class__._typestr_ is not None, 
+                      self.blocks(*args, **kwargs))
 
     @staticmethod
     def string_to_type(string : str = None):
@@ -162,19 +166,103 @@ class RectLoad(LoadGroup):
 
     def region(self):
         if self.points is not None:
-            xmin = self.points[:, 0].min()
-            ymin = self.points[:, 1].min()
-            xmax = self.points[:, 0].max()
-            ymax = self.points[:, 1].max()
-            return xmin, ymin, xmax - xmin, ymax - ymin
+            return points_to_region(self.points)
         return None, None, None, None
 
     def rhs(self, *args, **kwargs):
         Navier = kwargs.get('Navier', self.Navier())
-        return rhs_rect_const(Navier.size, Navier.shape, self.value, self.points)
+        return rect_const(Navier.size, Navier.shape, self.value, 
+                          self.points, model=Navier.model)
     
     def __repr__(self):
         return 'RectLoad(%s)' % (dict.__repr__(self)) 
+
+
+@squeeze(True)
+def rect_const(size : tuple, shape : tuple, values : np.ndarray,
+               points : np.ndarray, *args, model: str='mindlin', **kwargs):
+    """
+    Produces coefficients for continous loads in the order [mx, my, fz].
+        mx : bending moment aroung global x
+        my : bending moment aroung global y
+        fz : force along global z
+    """
+    if model.lower() in ['mindlin', 'm']:
+        rhs = rect_const_M(size, shape, atleast2d(values), atleast3d(points))
+    elif model.lower() in ['kirchhoff', 'k']:
+        rhs = rect_const_K(size, shape, atleast2d(values), atleast3d(points))
+    return rhs
+
+
+@njit(nogil=True, cache=True)
+def _rect_const_M(size : tuple, m: int, n:int, xc: float, yc:float, 
+                  w: float, h: float, values: ndarray):
+    Lx, Ly = size
+    mx, my, fz = values
+    return np.array([16*mx*sin((1/2)*PI*m*w/Lx)*
+                     sin((1/2)*PI*h*n/Ly)*sin(PI*n*yc/Ly)*
+                     cos(PI*m*xc/Lx)/(PI**2*m*n), 
+                     16*my*sin((1/2)*PI*m*w/Lx)*
+                     sin(PI*m*xc/Lx)*sin((1/2)*PI*h*n/Ly)*
+                     cos(PI*n*yc/Ly)/(PI**2*m*n), 
+                     16*fz*sin((1/2)*PI*m*w/Lx)*sin(PI*m*xc/Lx)*
+                     sin((1/2)*PI*h*n/Ly)*sin(PI*n*yc/Ly)/(PI**2*m*n)])
+    
+
+@njit(nogil=True, parallel=True, cache=True)
+def rect_const_M(size : tuple, shape : tuple, values : np.ndarray,
+                 points : np.ndarray):
+    nR = values.shape[0]
+    M, N = shape
+    rhs = np.zeros((nR, M * N, 3), dtype=points.dtype)
+    for iR in prange(nR):
+        xmin, ymin = points[iR, 0]
+        xmax, ymax = points[iR, 1]
+        xc = (xmin + xmax)/2
+        yc = (ymin + ymax)/2
+        w = np.abs(xmax - xmin)
+        h = np.abs(ymax - ymin)  
+        for m in prange(1, M + 1):
+            for n in prange(1, N + 1):
+                mn = (m - 1) * N + n - 1
+                rhs[iR, mn, :] = \
+                    _rect_const_M(size, m, n, xc, yc, w, h, values[iR])  
+    return rhs
+
+
+@njit(nogil=True, cache=True)
+def _rect_const_K(size : tuple, m: int, n:int, xc: float, yc:float, 
+                  w: float, h: float, values: ndarray):
+    Lx, Ly = size
+    mx, my, fz = values
+    return np.array([
+        -16*mx*sin((1/2)*PI*m*w/Lx)*sin(PI*m*xc/Lx)*sin((1/2)*PI*h*n/Ly)*\
+        sin(PI*n*yc/Ly)/(PI*Lx*n),
+        -16*my*sin((1/2)*PI*m*w/Lx)*sin(PI*m*xc/Lx)*sin((1/2)*PI*h*n/Ly)*\
+        sin(PI*n*yc/Ly)/(PI*Ly*m),
+        16*fz*sin((1/2)*PI*m*w/Lx)*sin(PI*m*xc/Lx)
+    ])
+    
+
+@njit(nogil=True, parallel=True, cache=True)
+def rect_const_K(size : tuple, shape : tuple, values : np.ndarray,
+                 points : np.ndarray):
+    nR = values.shape[0]
+    M, N = shape
+    rhs = np.zeros((nR, M * N, 3), dtype=points.dtype)
+    for iR in prange(nR):
+        xmin, ymin = points[iR, 0]
+        xmax, ymax = points[iR, 1]
+        xc = (xmin + xmax)/2
+        yc = (ymin + ymax)/2
+        w = np.abs(xmax - xmin)
+        h = np.abs(ymax - ymin)  
+        for m in prange(1, M + 1):
+            for n in prange(1, N + 1):
+                mn = (m - 1) * N + n - 1
+                rhs[iR, mn] = \
+                    _rect_const_K(size, m, n, xc, yc, w, h, values[iR])  
+    return rhs
 
 
 class PointLoad(LoadGroup):
@@ -213,102 +301,69 @@ class PointLoad(LoadGroup):
 
     def rhs(self, *args, **kwargs):
         Navier = kwargs.get('Navier', self.Navier())
-        return rhs_conc(Navier.size, Navier.shape, self.value, self.point)
+        return rhs_conc(Navier.size, Navier.shape, self.value, 
+                        self.point, model=Navier.model)
     
     def __repr__(self):
         return 'PointLoad(%s)' % (dict.__repr__(self)) 
+    
 
-
-def rhs_rect_const(size : tuple, shape : tuple, values : np.ndarray,
-                   points : np.ndarray, *args, **kwargs):
-    """
-    Produces coefficients for continous loads in the order [mx, my, fz].
-        mx : bending moment aroung global x
-        my : bending moment aroung global y
-        fz : force along global z
-    """
-    nD = len(values.shape)
-    if nD > 1:
-        return rhs_rect_const_njit(size, shape, values, points)
-    else:
-        return rhs_rect_const_njit(size, shape, values.reshape(1, *values.shape),
-                                   points.reshape(1, *points.shape))[0]
-
-
-@njit(nogil=True, cache=True)
-def _rhs_rect_const_njit(size : tuple, m: int, n:int, 
-                         xc: float, yc:float, w: float, h: float, 
-                         values: ndarray):
-    Lx, Ly = size
-    mx, my, fz = values
-    return np.array([16*mx*sin((1/2)*PI*m*w/Lx)*
-                     sin((1/2)*PI*h*n/Ly)*sin(PI*n*yc/Ly)*
-                     cos(PI*m*xc/Lx)/(PI**2*m*n), 
-                     16*my*sin((1/2)*PI*m*w/Lx)*
-                     sin(PI*m*xc/Lx)*sin((1/2)*PI*h*n/Ly)*
-                     cos(PI*n*yc/Ly)/(PI**2*m*n), 
-                     16*fz*sin((1/2)*PI*m*w/Lx)*sin(PI*m*xc/Lx)*
-                     sin((1/2)*PI*h*n/Ly)*sin(PI*n*yc/Ly)/(PI**2*m*n)])
-
-
-@njit(nogil=True, parallel=True, cache=True)
-def rhs_rect_const_njit(size : tuple, shape : tuple, values : np.ndarray,
-                        points : np.ndarray):
-    nRHS = values.shape[0]
-    M, N = shape
-    rhs = np.zeros((nRHS, M * N, 3), dtype=points.dtype)
-    for iRHS in prange(nRHS):
-        xmin, ymin = points[iRHS, 0]
-        xmax, ymax = points[iRHS, 1]
-        xc = (xmin + xmax)/2
-        yc = (ymin + ymax)/2
-        w = np.abs(xmax - xmin)
-        h = np.abs(ymax - ymin)  
-        for m in prange(1, M + 1):
-            for n in prange(1, N + 1):
-                mn = (m - 1) * N + n - 1
-                rhs[iRHS, mn, :] = \
-                    _rhs_rect_const_njit(size, m, n, xc, 
-                                         yc, w, h, values[iRHS])
-                
+@squeeze(True)
+def rhs_conc(size : tuple, shape : tuple, values : np.ndarray,
+             points : np.ndarray, *args, model: str='mindlin', **kwargs):
+    if model.lower() in ['mindlin', 'm']:
+        rhs = _conc_M(size, shape, atleast2d(values), atleast2d(points))
+    elif model.lower() in ['kirchhoff', 'k']:
+        rhs = _conc_K(size, shape, atleast2d(values), atleast2d(points))
     return rhs
 
 
-def rhs_conc(size : tuple, shape : tuple, values : np.ndarray,
-             points : np.ndarray, *args, **kwargs):
-    nD = len(values.shape)
-    if nD > 1:
-        return rhs_conc_njit(size, shape, values, points)
-    else:
-        return rhs_conc_njit(size, shape, values.reshape(1, *values.shape),
-                             points.reshape(1, *points.shape))[0]
-
-
 @njit(nogil=True, parallel=True, cache=True)
-def rhs_conc_njit(size : tuple, shape : tuple, values : np.ndarray,
-                  points : np.ndarray):
+def _conc_K(size: tuple, shape: tuple, values: ndarray, points : ndarray):
     nRHS = values.shape[0]
     Lx, Ly = size
+    c = 4 / Lx / Ly
+    Sx = PI / Lx
+    Sy = PI / Ly
     M, N = shape
     rhs = np.zeros((nRHS, M * N, 3), dtype=points.dtype)
-    PI = np.pi
-
     for iRHS in prange(nRHS):
         x, y = points[iRHS]
-        Sx = PI * x / Lx
-        Sy = PI * y / Ly
-        c = 4 / Lx / Ly
+        mx, my, fz = values[iRHS]
         for m in prange(1, M + 1):
             for n in prange(1, N + 1):
                 mn = (m - 1) * N + n - 1
                 rhs[iRHS, mn, :] = c
-                rhs[iRHS, mn, 0] *= values[iRHS, 0] * cos(m * Sx) * sin(n * Sy)
-                rhs[iRHS, mn, 1] *= values[iRHS, 1] * sin(m * Sx) * cos(n * Sy)
-                rhs[iRHS, mn, 2] *= values[iRHS, 2] * sin(m * Sx) * sin(n * Sy)
+                rhs[iRHS, mn, 0] *= -mx * sin(m * x * Sx) * sin(n * y * Sy)
+                rhs[iRHS, mn, 1] *= -my * sin(m * x * Sx) * sin(n * y* Sy)
+                rhs[iRHS, mn, 2] *= fz * sin(m * x * Sx) * sin(n * y * Sy)
     return rhs
 
 
-def points_to_region(points : np.ndarray):
+@njit(nogil=True, parallel=True, cache=True)
+def _conc_M(size: tuple, shape: tuple, values: ndarray, points : ndarray):
+    nRHS = values.shape[0]
+    Lx, Ly = size
+    c = 4 / Lx / Ly
+    M, N = shape
+    rhs = np.zeros((nRHS, M * N, 3), dtype=points.dtype)
+    PI = np.pi
+    for iRHS in prange(nRHS):
+        x, y = points[iRHS]
+        mx, my, fz = values[iRHS]
+        Sx = PI * x / Lx
+        Sy = PI * y / Ly
+        for m in prange(1, M + 1):
+            for n in prange(1, N + 1):
+                mn = (m - 1) * N + n - 1
+                rhs[iRHS, mn, :] = c
+                rhs[iRHS, mn, 0] *= mx * cos(m * Sx) * sin(n * Sy)
+                rhs[iRHS, mn, 1] *= my * sin(m * Sx) * cos(n * Sy)
+                rhs[iRHS, mn, 2] *= fz * sin(m * Sx) * sin(n * Sy)
+    return rhs
+
+
+def points_to_region(points : ndarray):
     xmin = points[:, 0].min()
     ymin = points[:, 1].min()
     xmax = points[:, 0].max()

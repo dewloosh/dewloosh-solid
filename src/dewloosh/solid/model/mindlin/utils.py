@@ -202,7 +202,7 @@ def shear_correction_data(ABDS: np.ndarray, C_126: np.ndarray,
     return np.array([[kx, 0], [0, ky]]), shear_factors
 
 
-@njit(nogil=True, parallel=True, cache=__cache)
+@njit(nogil=True, parallel=False, fastmath=True, cache=__cache)
 def stiffness_data_Mindlin(C_126: np.ndarray, C_45: np.ndarray,
                            angles: np.ndarray, bounds: np.ndarray, nZ=3):
     """

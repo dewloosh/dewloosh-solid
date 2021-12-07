@@ -8,7 +8,7 @@ from numpy import ndarray, pi as PI
 
 @squeeze(True)
 def lhs_Navier(size: tuple, shape: tuple, *args, D : ndarray,
-               S : ndarray=None, model=None, **kwargs):
+               S : ndarray=None, model: str='mindlin', **kwargs):
     """
     Returns coefficient matrix for a Navier solution, for a single or 
     multiple left-hand sides.
@@ -38,19 +38,14 @@ def lhs_Navier(size: tuple, shape: tuple, *args, D : ndarray,
         3d or 4d float array of coefficients. The shape depends on
         the shape of the input parameters.
     """
-    if S is not None:
-        return lhs_Navier_Mindlin_njit(size, shape, atleast3d(D), atleast3d(S))
-    else:
-        if model is None:
-            return lhs_Navier_Kirchhoff_njit(size, shape, atleast3d(D))
-        else:
-            # quasi Kirchhoff
-            raise NotImplementedError
+    if model.lower() in ['mindlin', 'm']:
+        return lhs_Mindlin(size, shape, atleast3d(D), atleast3d(S))
+    elif model.lower() in ['kirchhoff', 'k']:
+        return lhs_Kirchhoff(size, shape, atleast3d(D))
         
 
 @njit(nogil=True, cache=True)
-def _lhs_Navier_Mindlin(size : tuple, m: int, n:int, 
-                        D: ndarray, S: ndarray):
+def _lhs_Mindlin(size : tuple, m: int, n:int, D: ndarray, S: ndarray):
     Lx, Ly = size
     D11, D12, D22, D66 = D[0, 0], D[0, 1], D[1, 1], D[2, 2]
     S44, S55 = S[0, 0], S[1, 1]
@@ -66,8 +61,7 @@ def _lhs_Navier_Mindlin(size : tuple, m: int, n:int,
 
 
 @njit(nogil=True, parallel=True, cache=True)
-def lhs_Navier_Mindlin_njit(size : tuple, shape : tuple, D : np.ndarray,
-                            S : np.ndarray):
+def lhs_Mindlin(size : tuple, shape : tuple, D : np.ndarray, S : np.ndarray):
     """
     JIT compiled function, that returns coefficient matrices for a Navier 
     solution for multiple left-hand sides.
@@ -99,12 +93,20 @@ def lhs_Navier_Mindlin_njit(size : tuple, shape : tuple, D : np.ndarray,
         for m in prange(1, M + 1):
             for n in prange(1, N + 1):
                 iMN = (m - 1) * N + n - 1
-                res[iR, iMN] = _lhs_Navier_Mindlin(size, m, n, D[iR], S[iR])
+                res[iR, iMN] = _lhs_Mindlin(size, m, n, D[iR], S[iR])
     return res
 
 
+@njit(nogil=True, cache=True)
+def _lhs_Kirchhoff(size : tuple, m: int, n:int, D: ndarray):
+    Lx, Ly = size
+    D11, D12, D22, D66 = D[0, 0], D[0, 1], D[1, 1], D[2, 2]
+    return PI**4*D11*m**4/Lx**4 + 2*PI**4*D12*m**2*n**2/(Lx**2*Ly**2) + \
+        PI**4*D22*n**4/Ly**4 + 4*PI**4*D66*m**2*n**2/(Lx**2*Ly**2)
+
+
 @njit(nogil=True, parallel=True, cache=True)
-def lhs_Navier_Kirchhoff_njit(size : tuple, shape : tuple, D : np.ndarray):
+def lhs_Kirchhoff(size : tuple, shape : tuple, D : np.ndarray):
     """
     JIT compiled function, that returns coefficient matrices for a Navier 
     solution for multiple left-hand sides.
@@ -127,14 +129,13 @@ def lhs_Navier_Kirchhoff_njit(size : tuple, shape : tuple, D : np.ndarray):
         2d float array of coefficients.
     """
     nLHS = D.shape[0]
-    Lx, Ly = size
-    nX, nY = shape
-    A = np.zeros((nLHS, nX * nY), dtype=D.dtype)
-    PI = np.pi
+    M, N = shape
+    res = np.zeros((nLHS, M * N), dtype=D.dtype)
     for iR in prange(nLHS):
-        for m in prange(1, nX + 1):
-            for n in prange(1, nY + 1):
-                pass
-    return A
+        for m in prange(1, M + 1):
+            for n in prange(1, N + 1):
+                iMN = (m - 1) * N + n - 1
+                res[iR, iMN] = _lhs_Kirchhoff(size, m, n, D[iR])
+    return res
 
 
