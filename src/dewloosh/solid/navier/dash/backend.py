@@ -54,7 +54,8 @@ def calc3d(*args, E, nu, t, Lx, Ly, x0, y0, w, h, q,
     centers = Mesh.centers()
     #
     G = E/2/(1+nu)
-    D = np.array([[1, nu, 0], [nu, 1, 0], [0., 0, (1-nu)/2]]) * t**3 * (E / (1-nu**2)) / 12
+    D = np.array([[1, nu, 0], [nu, 1, 0], 
+                  [0., 0, (1-nu)/2]]) * t**3 * (E / (1-nu**2)) / 12
     S = np.array([[G, 0], [0, G]]) * t * 5 / 6
     #
     Mindlin = NavierProblem((Lx, Ly), (nx, ny), D=D, S=S, model='mindlin')
@@ -68,5 +69,5 @@ def calc3d(*args, E, nu, t, Lx, Ly, x0, y0, w, h, q,
     Kirchhoff.postproc(centers[:, :2], cleanup=False)
     
     res2d = np.stack([Mindlin.loads['LG1', 'LC2'].res2d, 
-                     Kirchhoff.loads['LG1', 'LC2'].res2d], axis=0)
+                      Kirchhoff.loads['LG1', 'LC2'].res2d], axis=0)
     return coords, triangles, res2d 

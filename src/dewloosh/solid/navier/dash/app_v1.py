@@ -1,5 +1,4 @@
-# Run this app with `python app.py` and
-# visit http://127.0.0.1:8050/ in your web browser.
+# -*- coding: utf-8 -*-
 from dewloosh.solid.navier.dash import calc3d, fig2d, fig3d, \
     input_mat, input_geom, input_calc, input_load
 import dash
@@ -39,7 +38,8 @@ app.layout = dbc.Container(
     [
         html.H1(children='Mindlin vs. Kirchhoff'),
         html.P(
-                "A simple dashboard to compare Mindlin-Reissner and Kirchhoff-Love plates.",
+                "A simple dashboard to compare Mindlin-Reissner" \
+                    + " and Kirchhoff-Love plates.",
                 className="lead",
                 ),
         html.Hr(),
@@ -127,6 +127,7 @@ def update_figure(comp, model):
         fig = fig2d(coords, res2d[mId, dId, :], cmap=cmap, **params)
     return fig
 
+
 @app.callback(
     Output('component', 'value'),
     Input('calc_button', 'n_clicks'),
@@ -153,6 +154,7 @@ def recalc(n_clicks, E, nu, t, Lx, Ly, x0, y0, w, h, q, nx, ny, comp):
     params['ny'] = int(ny)
     coords, triangles, res2d = calc3d(**params)
     return comp
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
