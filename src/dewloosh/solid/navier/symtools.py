@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import sympy as sy
-from sympy import symbols, Matrix
+from sympy import symbols, Matrix, pycode
 
 
 def inv_sym_3x3(m : Matrix, as_adj_det = False):
@@ -17,6 +17,9 @@ def inv_sym_3x3(m : Matrix, as_adj_det = False):
         return detP.subs(subs), adjP.subs(subs)
     else:
         return invP.subs(subs)
+
+
+
 
 
 """
