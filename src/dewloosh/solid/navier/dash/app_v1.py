@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.navier.dash import calc3d, fig2d, fig3d, \
+from dewloosh.solid.navier.dash import solve, fig2d, fig3d, \
     input_mat, input_geom, input_calc, input_load
 import dash
 import dash_bootstrap_components as dbc
@@ -26,7 +26,7 @@ x0, y0, w, h, q = 0.2*Lx, 0.5*Ly, 0.2*Lx, 0.3*Ly, -0.1
 params = {'E' : E, 'nu' : nu, 't' : t, 'Lx' : Lx, 'Ly' : Ly, 
           'x0' : x0, 'y0' : y0, 'w' : w, 'h' : h, 'q' : q,
           'nx' : nx, 'ny' : ny, 'rx' : rx, 'ry' : ry}
-coords, triangles, res2d  = calc3d(**params)
+coords, triangles, res2d  = solve(proj=proj, **params)
 if proj == '3d':
     fig = fig3d(coords, triangles, res2d[0, UZ, :], **params)
 elif proj == '2d':
@@ -152,7 +152,7 @@ def recalc(n_clicks, E, nu, t, Lx, Ly, x0, y0, w, h, q, nx, ny, comp):
     params = {key : float(value) for key, value in params.items()}
     params['nx'] = int(nx)
     params['ny'] = int(ny)
-    coords, triangles, res2d = calc3d(**params)
+    coords, triangles, res2d = solve(proj=proj, **params)
     return comp
 
 

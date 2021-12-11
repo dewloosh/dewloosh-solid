@@ -71,9 +71,12 @@ class NavierProblem:
             ABDS[3:, 3:] = 1e12
         res = postproc(ABDS, points, size=size, shape=shape, loads=RHS,
                        solution=coeffs, model=self.model)
+        if len(LC) == 1:
+            setattr(LC[0], self._key_res2d, np.squeeze(swap(res, 0, 1)))
+        else:
+            [setattr(lc, self._key_res2d, np.squeeze(swap(r2d, 0, 1)))
+                for lc, r2d in zip(LC, res)]
         res = np.squeeze(res)
-        [setattr(lc, self._key_res2d, swap(r2d, 0, 1))
-         for lc, r2d in zip(LC, res)]
         if cleanup:
             [delattr(lc, self._key_coeff) for lc in LC]
 

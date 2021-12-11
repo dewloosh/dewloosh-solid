@@ -27,12 +27,12 @@ class LoadGroup(Hierarchy):
         return self.containers(self, inclusive=inclusive,
                                dtype=dtype, deep=deep)
 
-    def load_cases(self, *args, **kwargs):
-        return filter(lambda i: i.__class__._typestr_ is not None,
-                      self.blocks(*args, **kwargs))
+    def load_cases(self, *args, inclusive=True, **kwargs):
+        return filter(lambda i: i.__class__._typestr_ is not None, 
+                      self.blocks(*args, inclusive=inclusive, **kwargs))
 
     @staticmethod
-    def string_to_type(string: str = None):
+    def string_to_dtype(string: str = None):
         if string == 'group':
             return LoadGroup
         elif string == 'rect':
@@ -92,12 +92,16 @@ class LoadGroup(Hierarchy):
 
     @staticmethod
     def from_dict(d: dict = None, **kwargs) -> 'LoadGroup':
-        res = LoadGroup()
-        for addr, value in parsedicts_addr(d):
+        if 'type' in d:
+            cls = LoadGroup.string_to_dtype(d['type'])
+        else:  
+            cls = LoadGroup
+        res = cls(**d)
+        for addr, value in parsedicts_addr(d, inclusive=True):
             if len(addr) == 0:
                 continue
             if 'type' in value:
-                cls = LoadGroup.string_to_type(value['type'])
+                cls = LoadGroup.string_to_dtype(value['type'])
                 value['key'] = addr[-1]
                 res[addr] = cls(**value)
         return res
