@@ -31,7 +31,7 @@ setup(
     description="A package to build and manage polygonal data",
     long_description=long_description,   
     long_description_content_type="text/markdown",
-    namespace_packages=find_namespace_packages(include=['dewloosh.*']),
+    packages=find_namespace_packages(where='src', include=['dewloosh.*']),
     classifiers=[
         'Development Status :: 3 - Alpha',     
         'License :: OSI Approved :: MIT License',   
@@ -41,5 +41,6 @@ setup(
     python_requires='>=3.6',                             
     package_dir={'':'src'},     
     install_requires=required,
+	zip_safe=False,
 )
 

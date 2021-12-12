@@ -1,6 +1,2 @@
-numpy
-scipy
-awkward
-numba
-sympy
+dewloosh.geom
 pylatex
