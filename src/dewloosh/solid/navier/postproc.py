@@ -7,7 +7,9 @@ from numba import njit, prange
 from dewloosh.math.array import atleast2d, atleast3d, \
     atleast4d, itype_of_ftype
 
+
 __all__ = ['postproc']
+
 
 UZ, ROTX, ROTY, CX, CY, CXY, EXZ, EYZ, MX, MY, MXY, QX, QY = list(range(13))
 

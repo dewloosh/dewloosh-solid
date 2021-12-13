@@ -6,6 +6,7 @@ from dewloosh.solid.navier.preproc import lhs_Navier
 from dewloosh.solid.navier.postproc import postproc
 from dewloosh.solid.navier.proc import linsolve
 from numpy import swapaxes as swap
+from time import time
 
 
 class NavierProblem:
@@ -28,6 +29,7 @@ class NavierProblem:
             raise NotImplementedError
         else:
             self.loads = LoadGroup(Navier=self)
+        self._summary = {}
 
     def add_point_load(self, name: str, pos: Iterable, value: Iterable,
                        **kwargs):
@@ -44,6 +46,7 @@ class NavierProblem:
         return self.loads
 
     def solve(self, *args, key='_coeffs', postproc=False, **kwargs):
+        self._summary = {}
         self._key_coeff = key
         LC = list(self.loads.load_cases())
         LHS = lhs_Navier(self.size, self.shape, D=self.D,
@@ -52,7 +55,13 @@ class NavierProblem:
         [setattr(lc, '_rhs', rhs) for lc, rhs in zip(LC, RHS)]
         if self.model in ['k', 'kirchhoff']:
             RHS = [np.sum(rhs, axis=-1) for rhs in RHS]
+        t0 = time()
         coeffs = linsolve(LHS, np.stack(RHS), squeeze=False)
+        self._summary['dt'] = time() - t0
+        nRHS, nLHS, nMN = coeffs.shape[:3]
+        self._summary['nMN'] = nMN
+        self._summary['nRHS'] = nRHS
+        self._summary['nLHS'] = nLHS
         [setattr(lc, self._key_coeff, c) for lc, c in zip(LC, coeffs)]
 
     def postproc(self, points: np.ndarray, *args, cleanup=True,
