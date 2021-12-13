@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from dewloosh.solid.model.mindlin.utils import \
-    stiffness_data_Mindlin, pproc_Mindlin_3D
+#from dewloosh.solid.model.mindlin.utils import \
+#    stiffness_data_Mindlin, pproc_Mindlin_3D
 from numpy import sin, cos, ndarray as nparray, pi as PI
 from numba import njit, prange
 from dewloosh.math.array import atleast2d, atleast3d, \
@@ -49,11 +49,14 @@ def postproc(ABDS: nparray, points: nparray, *args,
         assert bounds is not None
         raise NotImplementedError
     elif nD == 3 and C_126 is not None:
+        """
         res3d = pproc_Mindlin_Navier_3D(ABDS, C_126, C_45, bounds, points,
                                         res2d, shear_factors=shear_factors,
                                         squeeze=squeeze, angles=angles,
                                         separate=separate)
         return res3d if not squeeze else np.squeeze(res3d)
+        """
+        raise NotImplementedError
     else:
         return res2d if not squeeze else np.squeeze(res2d)
 
@@ -251,7 +254,7 @@ def pproc_Kirchhoff_2D(size, shape: nparray, points: nparray,
                             2*PI**3*Cmn*D66*m**2*n*Sm*Cn/(Lx**2*Ly) + qyy*Sm*Cn
     return res2d
 
-
+"""
 def pproc_Mindlin_Navier_3D(ABDS: nparray,
                             C_126: nparray, C_45: nparray,
                             bounds: nparray, points: nparray,
@@ -287,7 +290,7 @@ def shell_stiffness_data(shell):
         stiffness_data_Mindlin(C_126, C_45, angles, bounds)
     ABDS[-2:, -2:] *= shear_corrections
     return C_126, C_45, bounds, angles, ABDS, shear_factors
-
+"""
 
 if __name__ == '__main__':
     pass
