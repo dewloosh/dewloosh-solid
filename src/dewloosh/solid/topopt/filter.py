@@ -5,16 +5,17 @@ from dewloosh.math.linalg.sparse.csr import csr_matrix as csr
 from numba.typed import Dict as nbDict
 __cache = True
 
-
+# !FIXME1 : unsafe cast from uint64 to int64. Precision may be lost. 
 @njit(nogil=True, parallel=True, cache=__cache)
 def sensitivity_filter(sens: np.ndarray, dens: np.ndarray,
                        neighbours: nbDict, factors: dict):
     nE = len(dens)
     res = np.zeros_like(sens)
+    inds = np.arange(nE).astype(np.int64)
     for iE in prange(nE):
-        adj = neighbours[iE]
-        res[iE] = np.sum(factors[iE] * dens[adj] * sens[adj]) / \
-            (dens[iE] * np.sum(factors[iE]))
+        adj = neighbours[inds[iE]]  # FIXME 1 : SOLVED
+        res[inds[iE]] = np.sum(factors[inds[iE]] * dens[adj] * sens[adj]) / \
+            (dens[inds[iE]] * np.sum(factors[inds[iE]]))
     return res
 
 

@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 from dewloosh.math.function import Function
 from dewloosh.math.optimize import BinaryGeneticAlgorithm as BGA
-from dewloosh.math.linalg.tensor import ComplianceTensor
+from dewloosh.math.linalg.tensor3333 import ComplianceTensor
 from dewloosh.solid.material.hooke.sym import smat_sym_ortho_3d
-from dewloosh.solid.material.hooke.utils import standard_keys_ortho_3D, \
-    group_mat_params, keys_ortho_3D_all, is_proper_ortho_3d
+from dewloosh.solid.material.hooke.utils import standard_keys_ortho, \
+    group_mat_params, keys_ortho_all
 from dewloosh.core.tools.kwargtools import getasany
 import sympy as sy
 import numpy as np
@@ -14,7 +14,7 @@ from collections import defaultdict
 
 class Hooke3D(ComplianceTensor):
 
-    _standard_keys_ = standard_keys_ortho_3D
+    _standard_keys_ = standard_keys_ortho
 
     def __init__(self, *args, density : float=1.0, **kwargs):
         super().__init__(*args, **kwargs)
@@ -47,7 +47,8 @@ class Hooke3D(ComplianceTensor):
                              for key in self._args])
 
     def is_defined(self):
-        return is_proper_ortho_3d(**self.constants)
+        raise NotImplementedError
+        #return is_proper_ortho(**self.constants)
 
     def update(self, **kwargs):
         E, NU, G = group_mat_params(**kwargs)
@@ -55,7 +56,7 @@ class Hooke3D(ComplianceTensor):
         nParams = sum([nE, nNU, nG])
 
         #to avoid TypeError due to multiple keyword arguments
-        for k in keys_ortho_3D_all:
+        for k in keys_ortho_all:
             if k in kwargs:
                 del kwargs[k]
 

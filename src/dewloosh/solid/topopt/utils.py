@@ -14,8 +14,11 @@ nbfloat64A = nbtypes.float64[:]
 
 
 def cells_around(centers: np.ndarray, r_min: float, *args,
-                 as_csr=False, **kwargs):
-    conn, widths = _cells_around_(centers, r_min)
+                 as_csr=False, MT=True, n_max:int=10, **kwargs):
+    if MT:
+        conn, widths = _cells_around_MT_(centers, r_min, n_max)
+    else:
+        conn, widths = _cells_around_(centers, r_min)
     if as_csr:
         data, inds, indptr, shp = dict_to_spdata(conn, widths)
         return csr_matrix(data=data, indices=inds, indptr=indptr, shape=shp)
@@ -36,6 +39,24 @@ def _cells_around_(centers: np.ndarray, r_min: float):
         res[iE] = np.where(normsbuf <= r_min)[0]
         widths[iE] = len(res[iE])
     return res, widths
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def _cells_around_MT_(centers: np.ndarray, r_min: float, n_max: int=10):
+    nE = len(centers)
+    res = np.zeros((nE, n_max), dtype=np.int64)
+    widths = np.zeros(nE, dtype=np.int64)
+    for iE in prange(nE):
+        inds = np.where(norms(centers - centers[iE]) <= r_min)[0]
+        if inds.shape[0] <= n_max:
+            res[iE, :inds.shape[0]] = inds
+        else:
+            res[iE, :] = inds[:n_max]
+        widths[iE] = len(res[iE])
+    dres = dict()
+    for iE in range(nE):
+        dres[iE] = res[iE, :widths[iE]]
+    return dres, widths
 
 
 def filter_stiffness(K_bulk: np.ndarray, edofs: np.ndarray,

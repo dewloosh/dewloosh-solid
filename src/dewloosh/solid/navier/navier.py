@@ -12,9 +12,10 @@ from time import time
 class NavierProblem:
 
     def __init__(self, size: tuple, shape: tuple, *args,
-                 D: np.ndarray = None, S: np.ndarray = None,
+                 D: np.ndarray = None, S: np.ndarray=None,
                  Winkler=None, Pasternak=None, loads=None,
-                 Hetenyi=None, model='mindlin', mesh=None, **kwargs):
+                 Hetenyi=None, model='mindlin', mesh=None, 
+                 Bernoulli: bool=None, **kwargs):
         self.size = np.array(size, dtype=float)
         self.shape = np.array(shape, dtype=int)
         self.D = D
@@ -30,6 +31,8 @@ class NavierProblem:
         else:
             self.loads = LoadGroup(Navier=self)
         self._summary = {}
+        self.Bernoulli = not self.model in ['m', 'mindlin'] if Bernoulli is None else Bernoulli
+        assert isinstance(self.Bernoulli, bool), "The keyword argument `Bernoulli` must be `True` or `False`."
 
     def add_point_load(self, name: str, pos: Iterable, value: Iterable,
                        **kwargs):
@@ -49,8 +52,11 @@ class NavierProblem:
         self._summary = {}
         self._key_coeff = key
         LC = list(self.loads.load_cases())
-        LHS = lhs_Navier(self.size, self.shape, D=self.D,
-                         S=self.S, model=self.model, squeeze=False)
+        D = self.D
+        if self.Bernoulli and self.model in ['m', 'mindlin']:
+            D = np.full(self.D.shape, 1e12)
+        LHS = lhs_Navier(self.size, self.shape, D=D, S=self.S, 
+                         model=self.model, squeeze=False)
         RHS = list(lc.rhs() for lc in LC)
         [setattr(lc, '_rhs', rhs) for lc, rhs in zip(LC, RHS)]
         if self.model in ['k', 'kirchhoff']:

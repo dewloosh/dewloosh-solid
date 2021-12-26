@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Jul  2 18:31:06 2018
-
-@author: Bence
-"""
-
+from dewloosh.solid.fem.mesh import FemMesh
+from dewloosh.solid.fem.elements.TET4 import TET4
+from dewloosh.solid.fem.structure import Structure

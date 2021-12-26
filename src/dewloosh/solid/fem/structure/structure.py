@@ -9,6 +9,34 @@ from scipy.sparse.linalg import spsolve
 from time import time
 import numpy as np
 from scipy.sparse import isspmatrix as isspmatrix_np
+try:
+    import pypardiso as ppd
+    from pypardiso import PyPardisoSolver
+    #from pypardiso.scipy_aliases import pypardiso_solver
+    __haspardiso__ = True
+except Exception:
+    __haspardiso__ = False
+"""
+PARDISO MATRIX TYPES
+1
+real and structurally symmetric
+2
+real and symmetric positive definite
+-2
+real and symmetric indefinite
+3
+complex and structurally symmetric
+4
+complex and Hermitian positive definite
+-4
+complex and Hermitian indefinite
+6
+complex and symmetric
+11
+real and nonsymmetric
+13
+complex and nonsymmetric
+"""
 
 
 class Structure(Wrapper):
@@ -34,9 +62,6 @@ class Structure(Wrapper):
         self.preprocess(*args, **kwargs)
         self.process(*args, **kwargs)
         self.postprocess(*args, **kwargs)
-
-    def plot(self, *args, **kwargs):
-        raise NotImplementedError
     
     def populate_model(self, *args, **kwargs):
         blocks = self.mesh.cellblocks(inclusive=True)
@@ -79,17 +104,28 @@ class Structure(Wrapper):
             self.summary['preproc']['sparsify'] = sparsify
 
     def process(self, *args, use_umfpack=True, summary=True,
-                permc_spec='COLAMD', **kwargs):
+                permc_spec='COLAMD', solver='pardiso', mtype=11, **kwargs):
         Kr_coo = npcoo((self._K_bulk.flatten(), (self._krows, self._kcols)),
                        shape=(self._N, self._N), dtype=self._K_bulk.dtype)
         K_coo = Kr_coo + self._Kp_coo
         K_coo.eliminate_zeros()
         K_coo.sum_duplicates()
         t0 = time()
-        self._du = spsolve(K_coo.astype(np.float32),
-                           self._f.astype(np.float32),
-                           permc_spec=permc_spec,
-                           use_umfpack=use_umfpack).astype(np.float64)
+        
+        if solver == 'pardiso' and __haspardiso__:
+            if mtype == 11:
+                self._du = ppd.spsolve(K_coo, self._f)
+            else:
+                pds = PyPardisoSolver(mtype=mtype)
+                self._du = pds.solve(K_coo, self._f)
+        elif solver == 'scipy':
+            self._du = spsolve(K_coo.astype(np.float32),
+                               self._f.astype(np.float32),
+                               permc_spec=permc_spec,
+                               use_umfpack=use_umfpack).astype(np.float64)
+        else:
+            raise NotImplementedError("Selected solver '{}' is not supported!".format(solver))
+        
         dt = time() - t0
         if isspmatrix_np(self._du):
             self._du = self._du.todense()
@@ -98,7 +134,8 @@ class Structure(Wrapper):
                 'time [ms]': dt * 1000,
                 'N': self._du.shape[0],
                 'use_umfpack': use_umfpack,
-                'permc_spec': permc_spec
+                'permc_spec': permc_spec,
+                'solver': solver
             }
 
     def postprocess(self, *args, summary=True, cleanup=True, **kwargs):

@@ -1,81 +1,54 @@
-from dewloosh.solid.fem.utils import irows_icols_bulk
-from dewloosh.solid.fem.mesh import FemMesh
-from dewloosh.solid.fem.imap import index_mappers, box_spmatrix, \
-    box_rhs, box_dof_numbering
-from dewloosh.math.array import matrixform
+# -*- coding: utf-8 -*-
 from dewloosh.solid.topopt.utils import compliances_bulk, cells_around, \
-    get_filter_factors, get_filter_factors_csr, weighted_stiffness_bulk, \
-        filter_stiffness
-from dewloosh.solid.topopt.filter import sensitivity_filter, sensitivity_filter_csr
-from scipy.sparse import coo_matrix as npcoo, csc_matrix as npcsc
-from scipy.sparse.linalg import spsolve
+    get_filter_factors, get_filter_factors_csr, weighted_stiffness_bulk
+from dewloosh.solid.fem.structure import Structure
+from dewloosh.solid.topopt.filter import sensitivity_filter, \
+    sensitivity_filter_csr
 from dewloosh.math.linalg.sparse.csr import csr_matrix as csr
 import numpy as np
-from typing import Callable
-from time import time
+from collections import namedtuple
 
 
-def OC_SIMP_COMP(*args, sparsify=False, **kwargs):
-    if (len(args) > 0) and isinstance(args[0], FemMesh):
-        mesh = args[0]
-        centers = mesh.centers()
-        vols = mesh.areas()
-        K_bulk = mesh.stiffness_matrix(sparse=False)
-        gnum = mesh.element_dof_numbering()
-
-        # mapping dofs
-        loc_to_glob, glob_to_loc = index_mappers(gnum, return_inverse=True)
-        gnum = box_dof_numbering(gnum, glob_to_loc)
-
-        # essential boundary conditions
-        Kp_coo = mesh.penalty_matrix_coo()
-        Kp_coo = box_spmatrix(Kp_coo, glob_to_loc)
-
-        # natural boundary conditions
-        F = box_rhs(matrixform(mesh.load_vector()), loc_to_glob)
-        if sparsify:
-            F = npcsc(F)
-            
-        return _OC_SIMP_COMP_VOL_SENS_(K_bulk, Kp_coo, F, gnum, vols, centers, **kwargs)
-    else:
-        return _OC_SIMP_COMP_VOL_SENS_(*args, **kwargs)
+OptRes = namedtuple('OptimizationResult', 'x obj vol pen n')
 
 
-def _OC_SIMP_COMP_VOL_SENS_(
-    K_bulk : np.ndarray, Kp_coo : npcoo, RHS : np.ndarray,
-    gnum : np.ndarray, vols : np.ndarray, centers : np.ndarray, *args,
-    miniter = 10, maxiter = 100, p_start = 1.0, p_stop = 4.0,
-    p_inc = 0.2, p_step = 5, q = 0.5, vfrac = 0.6, dtol = 0.1,
-    r_min = None, fltr_stiff=False, summary=True, 
-    callback : Callable=None, **kwargs):
+def OC_SIMP_COMP(structure: Structure, *args,
+                 miniter=50, maxiter=100, p_start=1.0, p_stop=4.0,
+                 p_inc=0.2, p_step=5, q=0.5, vfrac=0.6, dtol=0.1,
+                 r_min=None, summary=True, penalty=None, **kwargs):
+
     do_filter = r_min is not None
 
+    structure.preprocess()
+    gnum = structure._gnum
+    K_bulk_0 = np.copy(structure._K_bulk)
+    vols = structure.volumes()
+    centers = structure.centers()
+
     # initial solution to set up parameters
-    krows, kcols = irows_icols_bulk(gnum)
-    krows = krows.flatten()
-    kcols = kcols.flatten()
-    nTOTV = gnum.max() + 1
-    full_shape = (nTOTV, nTOTV)
-    #
     dens = np.zeros_like(vols)
-    dens_tmp = np.zeros_like(vols)
-    dens_tmp_ = np.zeros_like(vols)
-    dCdx = np.zeros_like(vols)
+    dens_tmp = np.zeros_like(dens)
+    dens_tmp_ = np.zeros_like(dens)
+    dCdx = np.zeros_like(dens)
+    comps = np.zeros_like(dens)
+
+    def compliance(init=False):
+        if not init:
+            structure._K_bulk[:, :, :] = \
+                weighted_stiffness_bulk(K_bulk_0, dens)
+        structure.process(summary=True)
+        U = structure._du
+        comps[:] = compliances_bulk(K_bulk_0, U, gnum)
+        np.clip(comps, 1e-7, None, out=comps)
+        return np.sum(comps)
 
     # ------------------ INITIAL SOLUTION ---------------
-
-    Kr_coo = npcoo((K_bulk.flatten(), (krows, kcols)),
-                   shape=full_shape, dtype=K_bulk.dtype)
-    K_coo = Kr_coo + Kp_coo
-    U = spsolve(K_coo, RHS, permc_spec='NATURAL', use_umfpack=True)
-    comps = compliances_bulk(K_bulk, U, gnum)
-    np.clip(comps, 1e-7, None, out=comps)
-    comp = np.sum(comps)
+    comp = compliance(init=True)
     vol = np.sum(vols)
-
-    # initialization
     vol_start = vol
     vol_min = vfrac * vol_start
+
+    # initialite filter
     if do_filter:
         neighbours = cells_around(centers, r_min, as_csr=False)
         if isinstance(neighbours, csr):
@@ -84,23 +57,20 @@ def _OC_SIMP_COMP_VOL_SENS_(
         else:
             factors = get_filter_factors(centers, neighbours, r_min)
             fltr = sensitivity_filter
+            
+    # initialize penalty parameters
+    if penalty is not None:
+        p_start = penalty
+        p_stop = penalty + 1
+        p_step = maxiter + 1
 
     # ------------- INITIAL FEASIBLE SOLUTION ------------
-
     dens[:] = vfrac
-    K_bulk_w = weighted_stiffness_bulk(K_bulk, dens)
-    Kr_coo = npcoo((K_bulk_w.flatten(), (krows, kcols)),
-                   shape=full_shape, dtype=K_bulk.dtype)
-    K_coo = Kr_coo + Kp_coo
-    U = spsolve(K_coo, RHS, permc_spec='NATURAL', use_umfpack=True)
-    comps[:] = compliances_bulk(K_bulk, U, gnum)
-    np.clip(comps, 1e-7, None, out=comps)
-    comp = np.sum(comps)
-    if callback is not None:
-        callback(0, comp, vol, dens)
+    vol = np.sum(dens * vols)
+    comp = compliance()
+    yield OptRes(dens, comp, vol, p_start, -1)
 
     # ------------------- ITERATION -------------------
-
     p = p_start
     cIter = -1
     dt = 0
@@ -109,15 +79,15 @@ def _OC_SIMP_COMP_VOL_SENS_(
         if (p < p_stop) and (np.mod(cIter, p_step) == 0):
             p += p_inc
         cIter += 1
-        
+
         # estimate lagrangian
         lagr = p * comp / vol
 
         # set up boundaries of change
         _dens = dens * (1 - dtol)
-        np.clip(_dens, 1e-5, 1.0, out = _dens)
+        np.clip(_dens, 1e-5, 1.0, out=_dens)
         dens_ = dens * (1 + dtol)
-        np.clip(dens_, 1e-5, 1.0, out = dens_)
+        np.clip(dens_, 1e-5, 1.0, out=dens_)
 
         # sensitivity [*(-1)]
         dCdx[:] = p * comps * dens ** (p-1)
@@ -143,45 +113,27 @@ def _OC_SIMP_COMP_VOL_SENS_(
         lagr = lagr_
         dens[:] = dens_tmp
 
-        # resolve equilibrium equations
-        K_bulk_w = weighted_stiffness_bulk(K_bulk, dens)
-        if fltr_stiff:
-            # TODO : SELECT WORST <X> PERCENT
-            Kr_coo = npcoo(filter_stiffness(K_bulk_w, gnum, dens, tol=0.001),
-                            shape=full_shape, dtype=K_bulk.dtype)
-        else:
-            Kr_coo = npcoo((K_bulk_w.flatten(), (krows, kcols)),
-                            shape=full_shape, dtype=K_bulk.dtype)
-        K_coo = Kr_coo + Kp_coo
-        t0 = time()
-        U = spsolve(K_coo, RHS, permc_spec='NATURAL', use_umfpack=True)
-        dt += time() - t0
-        comps[:] = compliances_bulk(K_bulk, U, gnum)
-        np.clip(comps, 1e-7, None, out = comps)
-        comp = np.sum(comps)
+        # resolve equilibrium equations and calculate compliance
+        comp = compliance()
+        dt += structure.summary['proc']['time [ms]']
         vol = np.sum(dens * vols)
-        
-        if callback is not None:
-            callback(cIter, comp, vol, dens)
-        
+        yield OptRes(dens, comp, vol, p, cIter)
+
         if cIter < miniter:
             terminate = False
         elif cIter >= maxiter:
             terminate = True
         else:
-            terminate = (p >= p_stop) 
-    
+            terminate = (p >= p_stop)
+
     if summary:
-        dsum = {
-            'avg. time [ms]' : 1000 * dt / cIter,
-            'niter' : cIter,
-            'filter_stiff' : fltr_stiff
-            }
-        return dens, dsum
-    return dens
-
-
-
+        structure.summary['opt'] = {
+            'avg. time [ms]': dt / cIter,
+            'niter': cIter
+        }
+    structure._K_bulk[:, :, :] = K_bulk_0
+    # structure.postprocess()
+    return OptRes(dens, comp, vol, p, cIter)
 
 
 if __name__ == '__main__':
