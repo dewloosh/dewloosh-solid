@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from dewloosh.math.numint import GaussPoints as Gauss
 from dewloosh.solid.fem.model.solid3d import Solid3d
-from dewloosh.geom.polyhedron import TriquadraticHexaHedron
+from dewloosh.geom.H27 import H27 as HexaHedron
 from dewloosh.solid.fem.elem import FiniteElement
 
 
-class H27(FiniteElement, Solid3d, TriquadraticHexaHedron):
+class H27(HexaHedron, Solid3d, FiniteElement):
 
     qrule = 'selective'
     quadrature = {
