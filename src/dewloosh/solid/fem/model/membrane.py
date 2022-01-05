@@ -6,6 +6,10 @@ import numpy as np
 from numpy import ndarray
 __cache = True
 
+
+__all__ = ['Membrane', 'DrillingMembrane']
+
+
 _NSTRE_ = 3
 _NDOFN_ = 2
 _NHOOKE_ = 3
@@ -75,3 +79,13 @@ class Membrane(Surface):
     @classmethod
     def material_strains(cls, model_strains, z, t, *args, **kwargs):
         return material_strains(model_strains, z)
+    
+
+_NDOFN_ = 3
+
+
+class DrillingMembrane(Membrane):
+
+    NDOFN = _NDOFN_
+    NSTRE = _NSTRE_
+

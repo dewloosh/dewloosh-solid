@@ -3,7 +3,7 @@ from numba import njit, prange
 import numpy as np
 from numpy import ndarray
 from dewloosh.math.linalg.sparse.csr import csr_matrix as csr
-from dewloosh.math.array import find1d, flatten2dC, tile1d, repeat1d
+from dewloosh.math.array import find1d, flatten2dC
 __cache = True
 
 

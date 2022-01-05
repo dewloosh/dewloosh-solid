@@ -31,9 +31,11 @@ def loc_to_glob(pcoord: np.ndarray, gcoords: np.ndarray, shpfnc: Callable):
         2D array containing coordinates for every node of a single element.
             nNE : number of vertices of the element
             nD : number of dimensions of the model space
+            
     pcoords : (nDP, ) ndarray
         1D array of parametric coordinates for a single point.
             nDP : number of dimensions of the parametric space
+            
     shpfnc : Callable
         A function that evaluates shape function values at a point,
         specified with parametric coordinates.
@@ -65,10 +67,12 @@ def loc_to_glob_bulk(pcoords: np.ndarray, gcoords: np.ndarray,
             nE : number of elements
             nNE : number of vertices of the element
             nD : number of dimensions of the model space
+            
     pcoords : (nP, nDP) ndarray
         2D array of parametric coordinates for several points.
             nP : number of points
             nDP : number of dimensions of the parametric space
+            
     shpfnc : Callable
         A function that evaluates shape function values at a point,
         specified with parametric coordinates.
@@ -113,13 +117,16 @@ def glob_to_loc(coord: np.ndarray, gcoords: np.ndarray, lcoords: np.ndarray,
         2D array containing coordinates for every node of a single element.
             nNE : number of vertices of the element
             nD : number of dimensions of the model space
+            
     coord : (nD, ) ndarray
         1D array of global coordinates for a single point.
             nD : number of dimensions of the model space
+            
     lcoords : (nNE, nDP) ndarray
         2D array of local coordinates of the parametric element.
             nNE : number of vertices of the element
             nDP : number of dimensions of the parametric space
+            
     monomsfnc : Callable
         A function that evaluates monomials of the shape functions at a point
         specified with parametric coordinates.
@@ -160,14 +167,17 @@ def glob_to_loc_bulk(coords: np.ndarray, gcoords: np.ndarray,
             nE : number of elements
             nNE : number of vertices of the element
             nD : number of dimensions of the model space
+            
     coords : (nP, nD) ndarray
         2D array of global coordinates for several points.
             nP : number of points
             nD : number of dimensions of the model space
+            
     lcoords : (nNE, nDP) ndarray
         2D array of local coordinates of the parametric element.
             nNE : number of vertices of the element
             nDP : number of dimensions of the parametric space
+            
     monomsfnc : Callable
         A function that evaluates monomials of the shape functions at a point
         specified with parametric coordinates.
@@ -216,16 +226,20 @@ def pip(coord: np.ndarray, gcoords: np.ndarray, lcoords: np.ndarray,
         2D array containing coordinates for every node of a single element.
             nNE : number of vertices of the element
             nD : number of dimensions of the model space
+            
     coord : (nD, ) ndarray
         1D array of global coordinates for a single point.
             nD : number of dimensions of the model space
+            
     lcoords : (nNE, nDP) ndarray
         2D array of local coordinates of the parametric element.
             nNE : number of vertices of the element
             nDP : number of dimensions of the parametric space
+            
     monomsfnc : Callable
         A function that evaluates monomials of the shape functions at a point
         specified with parametric coordinates.
+        
     shpfnc : Callable
         A function that evaluates shape function values at a point,
         specified with parametric coordinates.
@@ -250,7 +264,8 @@ def pip(coord: np.ndarray, gcoords: np.ndarray, lcoords: np.ndarray,
 def int_domain(points: np.ndarray, qpos: np.ndarray, qweight: np.ndarray,
                dshpfnc: Callable, weight: float = 1.0):
     """
-    Returns the measure (length, area or volume in 1d, 2d and 3d) of a single domain.
+    Returns the measure (length, area or volume in 1d, 2d and 3d) of a 
+    single domain.
     """
     volume = 0.
     points = np.transpose(points)
@@ -266,7 +281,8 @@ def int_domain(points: np.ndarray, qpos: np.ndarray, qweight: np.ndarray,
 def int_domains(ecoords: np.ndarray, qpos: np.ndarray,
                 qweight: np.ndarray, dshpfnc: Callable):
     """
-    Returns the measure (length, area or volume in 1d, 2d and 3d) of several domains.
+    Returns the measure (length, area or volume in 1d, 2d and 3d) of 
+    several domains.
     """
     nE = ecoords.shape[0]
     res = np.zeros(nE, dtype=ecoords.dtype)

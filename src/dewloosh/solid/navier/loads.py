@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from dewloosh.core.types import Hierarchy
+from dewloosh.core.types import Library
 from dewloosh.core.types.defaultdict import parsedicts_addr
 from dewloosh.core.tools import allinkwargs, popfromdict
 from dewloosh.core.tools import float_to_str_sig
@@ -11,7 +11,7 @@ from numpy import sin, cos, ndarray, pi as PI
 from numba import njit, prange
 
 
-class LoadGroup(Hierarchy):
+class LoadGroup(Library):
     _typestr_ = None
 
     def __init__(self, *args, Navier=None, **kwargs):

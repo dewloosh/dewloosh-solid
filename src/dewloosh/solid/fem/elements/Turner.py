@@ -11,6 +11,9 @@ from numba import njit, prange
 __cache = True
 
 
+__all__ = ['Turner']
+
+
 @njit(nogil=True, cache=__cache)
 def _strain_displacement_matrix_(ecoords: np.ndarray):
     (x1, x2, x3), (y1, y2, y3) = ecoords[:, 0], ecoords[:, 1]

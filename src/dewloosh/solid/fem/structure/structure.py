@@ -9,6 +9,11 @@ from scipy.sparse.linalg import spsolve
 from time import time
 import numpy as np
 from scipy.sparse import isspmatrix as isspmatrix_np
+
+
+__all__ = ['Structure']
+
+
 try:
     import pypardiso as ppd
     from pypardiso import PyPardisoSolver

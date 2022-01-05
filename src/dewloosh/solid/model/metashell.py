@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from dewloosh.core.types import Hierarchy
+from dewloosh.core.types import Library
 from dewloosh.core.tools.kwargtools import getasany, allinkwargs, anyinkwargs
 import numpy as np
 from abc import abstractmethod
 
 
-class MetaSurface(Hierarchy):
+class MetaSurface(Library):
     """
     Base object implementing methods that both a folder (a shell) and a
     file (a layer) can posess.

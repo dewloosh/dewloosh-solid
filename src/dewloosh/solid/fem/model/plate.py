@@ -6,6 +6,10 @@ import numpy as np
 from numpy import ndarray
 __cache = True
 
+
+__all__ = ['Plate']
+
+
 _NSTRE_ = 5
 _NDOFN_ = 3
 _NHOOKE_ = 5

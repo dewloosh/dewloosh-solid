@@ -8,7 +8,10 @@ from dewloosh.geom.utils import nodal_distribution_factors
 import numpy as np
 from numpy import ndarray
 from numba import njit, prange
-__cache = False
+__cache = True
+
+
+__all__ = ['Q5MV']
 
 
 topoT2 = np.array([[0, 1, 3, 4, 8, 7], [1, 2, 3, 5, 6, 8],
@@ -155,7 +158,7 @@ def stiffness_matrix_T2(C: ndarray, ecoords: ndarray):
 
 @njit(nogil=True, parallel=False, fastmath=True, cache=__cache)
 def transfer_passive_loads_T2(cellloadsT2: ndarray):
-    """Transforms loads on passive nodes to active nodes
+    """(2) Transforms loads on passive nodes to active nodes
     according to the transformation described by `Turner_to_Veubeke`."""
     nE = cellloadsT2.shape[0]
     res = np.zeros_like(cellloadsT2)
@@ -174,7 +177,7 @@ def transfer_passive_loads_T2(cellloadsT2: ndarray):
 
 @njit(nogil=True, parallel=True, cache=__cache)
 def distribute_nodal_data_T2(celldata: ndarray):
-    """Distributes master element data to subelement level."""
+    """(1) Distributes master element data to subelement level."""
     nE, _, nD = celldata.shape
     res = np.zeros((nE, 4, 6, nD))
     for iE in prange(nE):
@@ -187,7 +190,7 @@ def distribute_nodal_data_T2(celldata: ndarray):
 
 @njit(nogil=True, parallel=False, fastmath=True, cache=__cache)
 def collect_nodal_dataT2(celldataT2: ndarray):
-    """Collects master element data from subelement level."""
+    """(3) Collects master element data from subelement level."""
     nE, _, _, nD = celldataT2.shape
     res = np.zeros((nE, 9, nD), dtype=celldataT2.dtype)
     for iE in prange(nE):
@@ -202,9 +205,9 @@ def nodal_data_T2(celldata: ndarray):
     """
     Handles loads defined on passive nodes in 3 steps:
     (1) Distribute master element data further to subelement level.
-    (2) On every subelement, transform passive loads to uniform
-        body loads and integrate to active nodes.
-    (3) Collect master element data from subelement level.
+    (2) On every subelement, transforms passive loads to uniform
+        body loads and integrates to active nodes.
+    (3) Collects master element data from subelement level.
     """
     celldataT2 = distribute_nodal_data_T2(celldata)
     celldataT2 = transfer_passive_loads_T2(celldataT2)

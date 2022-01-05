@@ -6,6 +6,10 @@ import numpy as np
 from numpy import ndarray
 __cache = True
 
+
+__all__ = ['Solid3d']
+
+
 _NSTRE_ = 6
 _NDOFN_ = 3
 
