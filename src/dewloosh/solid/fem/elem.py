@@ -85,7 +85,7 @@ class FiniteElement(object):
     
     # !TODO : this should be implemented at model
     def element_dcm_matrices(self, *args, frames=None, **kwargs):
-        raise NotImplementedError
+        return None
 
     def local_coordinates(self, *args, frames=None, _topo=None, **kwargs):
         frames = self.frames.to_numpy() if frames is None else frames
@@ -198,7 +198,10 @@ class FiniteElement(object):
             
             if frames is not None:
                 dcm = self.element_dcm_matrices(frames=frames)
-                return transform_stiffness(res, dcm)
+                if dcm is not None:
+                    return transform_stiffness(res, dcm)
+                else:
+                    return res
             else:
                 return res
         
