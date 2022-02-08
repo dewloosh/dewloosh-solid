@@ -17,7 +17,7 @@ from collections import namedtuple
 Quadrature = namedtuple('QuadratureRule', ['inds', 'pos', 'weight'])
 
 
-class FiniteElement(object):
+class FiniteElement:
     # must be reimplemented
     NNODE: int = None  # number of nodes, normally inherited
     # from the mesh object
@@ -194,8 +194,7 @@ class FiniteElement(object):
                 res = self.stiffness_matrix(*args, _topo=_topo, 
                                             frames=frames, _q=q,
                                             _ecoords=_ecoords, 
-                                            squeeze=False, **kwargs)
-            
+                                            squeeze=False, **kwargs)       
             if frames is not None:
                 dcm = self.element_dcm_matrices(frames=frames)
                 if dcm is not None:

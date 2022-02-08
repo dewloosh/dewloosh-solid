@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from dewloosh.solid.fem.model.solid import Solid
-from dewloosh.geom.utils import cells_coords
 from numba import njit, prange
 import numpy as np
 from numpy import ndarray
@@ -29,5 +28,5 @@ class BernoulliBeam(Solid):
     def element_dcm_matrices(self, *args, frames=None, **kwargs):
         frames = self.frames.to_numpy() if frames is None else frames
         return element_dcm_matrices(frames)
-    
+        
     
