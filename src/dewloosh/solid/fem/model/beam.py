@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.fem.model.solid import Solid
 from numba import njit, prange
 import numpy as np
 from numpy import ndarray
+
+from .solid import Solid
+
 __cache = True
 
 

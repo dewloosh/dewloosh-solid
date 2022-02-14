@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
-from dewloosh.geom.polydata import PolyData
-from dewloosh.math.array import isboolarray, is1dfloatarray
-from dewloosh.solid.fem.preproc import fem_load_vector, fem_penalty_matrix_coo
-from dewloosh.math.linalg.sparse.csr import csr_matrix as csr
 import numpy as np
+
+from dewloosh.math.array import isboolarray, is1dfloatarray
+from dewloosh.math.linalg.sparse.csr import csr_matrix as csr
+
+from dewloosh.geom import PolyData
+
+from .preproc import fem_load_vector, fem_penalty_matrix_coo
 
 
 class FemMesh(PolyData):

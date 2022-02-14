@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
-from dewloosh.geom.Q4 import Q4 as Quadrilateral
-from dewloosh.solid.fem.elem import FiniteElement
-from dewloosh.math.numint import GaussPoints as Gauss
-from dewloosh.geom.tri.triutils import area_tri_bulk
-from dewloosh.geom.utils import cell_coords_bulk
-from dewloosh.solid.fem.model.membrane import Membrane
-from dewloosh.solid.fem.model.plate import Plate
 import numpy as np
 from numba import njit
+
+from dewloosh.math.numint import GaussPoints as Gauss
+
+from dewloosh.geom.tri.triutils import area_tri_bulk
+from dewloosh.geom.utils import cells_coords
+from dewloosh.geom.cells import Q4 as Quadrilateral
+
+from ..elem import FiniteElement
+from ..model.membrane import Membrane
+from ..model.plate import Plate
+
 __cache = True
 
 
@@ -36,7 +40,7 @@ class Q4M(Quadrilateral, Membrane, FiniteElement):
         """This shadows the original geometrical implementation."""
         coords = self.pointdata.x.to_numpy() if coords is None else coords
         topo = self.nodes.to_numpy() if topo is None else topo
-        return area_Q4_bulk(cell_coords_bulk(coords, topo))
+        return area_Q4_bulk(cells_coords(coords, topo))
     
 
 class Q4P(Quadrilateral, Plate, FiniteElement):
@@ -56,7 +60,7 @@ class Q4P(Quadrilateral, Plate, FiniteElement):
         coords = self.pointdata.x.to_numpy() if coords is None else coords
         topo = self.nodes.to_numpy() if topo is None else topo
         self.local_coordinates(topo=topo)
-        return area_Q4_bulk(cell_coords_bulk(coords, topo))
+        return area_Q4_bulk(cells_coords(coords, topo))
     
     
 if __name__ == '__main__':

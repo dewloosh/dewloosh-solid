@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.fem.elem import FiniteElement
-from dewloosh.geom.T3 import T3 as Triangle
-from dewloosh.solid.fem.model.membrane import Membrane
-from dewloosh.solid.fem.model.plate import Plate
 import numpy as np
+
+from dewloosh.geom.cells import T3 as Triangle
+
+from ..elem import FiniteElement
+from ..model.membrane import Membrane
+from ..model.plate import Plate
+
 
 
 class CSTM(Triangle, Membrane, FiniteElement):

@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from dewloosh.math.linalg import linspace1d
-from dewloosh.math.array import clip1d
 from numpy.linalg import inv
 from numba import njit, prange
+
+from dewloosh.math.linalg import linspace1d
+from dewloosh.math.array import clip1d
+
 __cache = True
 
 
@@ -258,6 +260,7 @@ def stiffness_data_Mindlin(C_126: np.ndarray, C_45: np.ndarray,
 
 
 if __name__ == '__main__':
+    """
     from dewloosh.solidanics.material.hooke import Lamina
     from dewloosh.solidanics.model.mindlin import MindlinShell as Shell
     from dewloosh.math.array import repeat
@@ -317,3 +320,4 @@ if __name__ == '__main__':
     for i in range(40):
         stiffness_matrix(shell, material)
     print(time()-t1)
+    """

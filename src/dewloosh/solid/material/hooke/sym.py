@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import sympy as sy
+
 from dewloosh.math.linalg.tensor3333 import ComplianceTensor
 
 

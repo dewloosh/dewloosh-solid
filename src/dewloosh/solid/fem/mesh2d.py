@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.fem.mesh import FemMesh
-from dewloosh.geom.space.utils import frame_of_plane
-from dewloosh.math.linalg.frame import ReferenceFrame as FrameLike
 import numpy as np
+
+from dewloosh.math.linalg.frame import ReferenceFrame as FrameLike
+
+from dewloosh.geom.space.utils import frame_of_plane
+
+from .mesh import FemMesh
 
 
 class FemMesh2d(FemMesh):

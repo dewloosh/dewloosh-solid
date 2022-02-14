@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.fem.model.solid3d import Solid3d
-from dewloosh.geom.TET4 import TET4 as Tetra
-from dewloosh.solid.fem.elem import FiniteElement
 import numpy as np
+
+from dewloosh.geom.cells import TET4 as Tetra
+
+from ..model.solid3d import Solid3d
+from ..elem import FiniteElement
 
 
 class TET4(Tetra, Solid3d, FiniteElement):

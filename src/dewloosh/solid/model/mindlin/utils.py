@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from dewloosh.math.linalg import linspace1d
-from dewloosh.math.array import ascont, clip1d, \
-    atleast1d, atleast2d, atleast3d, atleast4d
 from numpy.linalg import inv
 from numba import njit, prange
 from collections import Iterable
+
+from dewloosh.math.linalg import linspace1d
+from dewloosh.math.array import ascont, clip1d, \
+    atleast1d, atleast2d, atleast3d, atleast4d
+
 __cache = True
 
 

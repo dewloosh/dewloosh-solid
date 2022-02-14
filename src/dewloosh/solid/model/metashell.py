@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-from dewloosh.core.types import Library
-from dewloosh.core.tools.kwargtools import getasany, allinkwargs, anyinkwargs
 import numpy as np
 from abc import abstractmethod
+
+from dewloosh.core.types import Library
+from dewloosh.core.tools.kwargtools import getasany, allinkwargs, anyinkwargs
 
 
 class MetaSurface(Library):

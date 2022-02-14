@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from dewloosh.math.array import minmax
 from scipy.sparse import coo_matrix as coo_np
 from scipy.sparse import csr_matrix as csr_np
 from scipy.sparse import csc_matrix as csc_np
@@ -10,6 +9,9 @@ from numpy import ndarray
 from numba import njit, prange
 from numba.typed import Dict as nbDict
 from numba import types as nbtypes
+
+from dewloosh.math.array import minmax
+
 __cache = True
 
 nbint64 = nbtypes.int64

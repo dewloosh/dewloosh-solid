@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
-from dewloosh.geom.utils import distances_of_points
-from dewloosh.math.linalg import normalize as norm
 import numpy as np
+
+from dewloosh.math.linalg import normalize as norm
+
+from dewloosh.geom.utils import distances_of_points
 
 
 def plot_path(ax, data, coords, *args, 

@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 from scipy.sparse import coo_matrix
 import numpy as np
+
 from dewloosh.math.array import isintegerarray, isfloatarray, \
     is1dintarray, is1dfloatarray, isboolarray, bool_to_float
 from dewloosh.math.linalg.sparse.utils import lower_spdata, upper_spdata
-from dewloosh.solid.fem.utils import nodes2d_to_dofs1d, irows_icols_bulk
+
+from .utils import nodes2d_to_dofs1d, irows_icols_bulk
 
 
 def fem_coeff_matrix_coo(A: np.ndarray, *args,

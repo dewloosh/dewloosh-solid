@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
-from dewloosh.math.function import Function
-from dewloosh.math.optimize import BinaryGeneticAlgorithm as BGA
-from dewloosh.math.linalg.tensor3333 import ComplianceTensor
-from dewloosh.solid.material.hooke.sym import smat_sym_ortho_3d
-from dewloosh.solid.material.hooke.utils import standard_keys_ortho, \
-    group_mat_params, keys_ortho_all
-from dewloosh.core.tools.kwargtools import getasany
 import sympy as sy
 import numpy as np
 from scipy.optimize import minimize
 from collections import defaultdict
+
+from dewloosh.core.tools.kwargtools import getasany
+
+from dewloosh.math.function import Function
+from dewloosh.math.optimize import BinaryGeneticAlgorithm as BGA
+from dewloosh.math.linalg.tensor3333 import ComplianceTensor
+
+from .sym import smat_sym_ortho_3d
+from .utils import standard_keys_ortho, group_mat_params, keys_ortho_all
 
 
 class Hooke3D(ComplianceTensor):

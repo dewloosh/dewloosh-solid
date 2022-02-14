@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.fem.utils import topo_to_gnum
 from dewloosh.math.array import atleast2d
-from dewloosh.solid.fem.model.utils import model_strains, \
-    stresses_from_strains
+
+from .utils import model_strains, stresses_from_strains
+from ..utils import topo_to_gnum
 
 
 class Solid:

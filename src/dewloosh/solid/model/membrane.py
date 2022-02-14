@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.model.metashell import Surface, Layer
 import numpy as np
+
+from .metashell import Surface, Layer
+
 
 __all__ = ['Membrane']
 

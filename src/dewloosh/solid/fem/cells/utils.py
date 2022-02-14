@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
-from dewloosh.math.linalg import inv
-from dewloosh.geom.utils import cells_coords
 from typing import Callable
 from numba import njit, prange
 import numpy as np
 from numpy import ndarray
+
+from dewloosh.math.linalg import inv
+
+from dewloosh.geom.utils import cells_coords
+
 __cache = True
 
 

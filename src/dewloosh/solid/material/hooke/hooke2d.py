@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.material.hooke.hooke import Hooke3D
 import numpy as np
+
+from .hooke import Hooke3D
 
 
 class Hooke2D(Hooke3D):

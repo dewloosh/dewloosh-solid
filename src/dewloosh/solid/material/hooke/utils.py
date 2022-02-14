@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.material.hooke.sym import smat_sym_ortho_3d
-from dewloosh.math.function import Function
-from dewloosh.core.tools.kwargtools import getasany
-from dewloosh.solid.material.hooke.sym import smat_sym_ortho_3d
 from scipy.optimize import minimize
 from sympy import symbols, Eq, solve, false, true
 from sympy.logic.boolalg import Boolean
 import numpy as np
+
+from dewloosh.core.tools.kwargtools import getasany
+
+from dewloosh.math.function import Function
+
+from .sym import smat_sym_ortho_3d
 
 
 standard_keys_ortho = ['E1', 'E2', 'E3', 'NU12', 'NU13', 'NU23', 'G12', 'G13', 'G23']

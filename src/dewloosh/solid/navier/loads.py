@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-from dewloosh.core.types import Library
-from dewloosh.core.types.defaultdict import parsedicts_addr
-from dewloosh.core.tools import allinkwargs, popfromdict
-from dewloosh.core.tools import float_to_str_sig
-from dewloosh.math.array import atleast2d, atleast3d
-from dewloosh.core.squeeze import squeeze
 import json
 import numpy as np
 from numpy import sin, cos, ndarray, pi as PI
 from numba import njit, prange
+
+from dewloosh.core import squeeze
+from dewloosh.core.types import Library
+from dewloosh.core.types.defaultdict import parsedicts_addr
+from dewloosh.core.tools import allinkwargs, popfromdict, float_to_str_sig
+
+from dewloosh.math.array import atleast2d, atleast3d
 
 
 class LoadGroup(Library):

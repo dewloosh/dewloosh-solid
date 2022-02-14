@@ -19,9 +19,6 @@ def inv_sym_3x3(m : Matrix, as_adj_det = False):
         return invP.subs(subs)
 
 
-
-
-
 """
 from sympy.utilities.lambdify import lambdify
 import numpy as np

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from numba import njit
 import numpy as np
 __cache = True

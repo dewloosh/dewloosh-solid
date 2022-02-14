@@ -1,6 +1,8 @@
-from dewloosh.solid.model.metashell import Surface, Layer
-
+# -*- coding: utf-8 -*-
 import numpy as np
+
+from ..metashell import Surface, Layer
+
 
 __all__ = ['MindlinShell']
 

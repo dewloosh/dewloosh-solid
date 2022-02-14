@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from typing import Iterable
-from dewloosh.solid.navier.loads import LoadGroup, RectLoad, PointLoad
-from dewloosh.solid.navier.preproc import lhs_Navier
-from dewloosh.solid.navier.postproc import postproc
-from dewloosh.solid.navier.proc import linsolve
 from numpy import swapaxes as swap
 from time import time
+
+from .loads import LoadGroup, RectLoad, PointLoad
+from .preproc import lhs_Navier
+from .postproc import postproc
+from .proc import linsolve
 
 
 class NavierProblem:

@@ -1,9 +1,9 @@
-from dewloosh.solid.fem.structure.structure import Structure
-from dewloosh.solid.fem.mesh2d import FemMesh2d
+# -*- coding: utf-8 -*-
+from .structure import Structure
+from ..mesh2d import FemMesh2d
 
 
-class Domain(Structure):
-    
+class Domain2d(Structure):
+
     def __init__(self, *args, mesh: FemMesh2d = None, **kwargs):
         super().__init__(wrap=mesh)
-        

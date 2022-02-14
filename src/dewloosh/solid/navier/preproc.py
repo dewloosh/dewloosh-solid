@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from dewloosh.math.array import atleast3d
-from dewloosh.core.squeeze import squeeze
 from numba import njit, prange
 from numpy import ndarray, pi as PI
+
+from dewloosh.core import squeeze
+
+from dewloosh.math.array import atleast3d
 
 
 @squeeze(True)

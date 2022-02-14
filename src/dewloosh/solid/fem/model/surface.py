@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.fem.model.solid import Solid
-from dewloosh.solid.fem.utils import topo_to_gnum
-from dewloosh.geom.utils import cell_coords_bulk
 from dewloosh.math.array import atleast2d
-from dewloosh.solid.fem.model.utils import stresses_from_strains
+
+from dewloosh.geom.utils import cells_coords
+
+from ..utils import topo_to_gnum
+from .solid import Solid
+from .utils import stresses_from_strains
 
 
 class Surface(Solid):
@@ -13,7 +15,7 @@ class Surface(Solid):
         # !FIXME : this is missing transformation
         topo = self.nodes.to_numpy() if topo is None else topo
         coords = self.pointdata.x.to_numpy()
-        return cell_coords_bulk(coords[:, :2], topo)
+        return cells_coords(coords[:, :2], topo)
 
     def thickness(self, *args, **kwargs):
         return self._wrapped.t.to_numpy()

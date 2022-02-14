@@ -4,6 +4,7 @@ import numpy as np
 #    stiffness_data_Mindlin, pproc_Mindlin_3D
 from numpy import sin, cos, ndarray as nparray, pi as PI
 from numba import njit, prange
+
 from dewloosh.math.array import atleast2d, atleast3d, \
     atleast4d, itype_of_ftype
 

@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.fem.model.surface import Surface
-from dewloosh.solid.material.utils import HMH_S
 from numba import njit, prange
 import numpy as np
 from numpy import ndarray
+
+from ..model.surface import Surface
+from ...material.utils import HMH_S
+
 __cache = True
 
 

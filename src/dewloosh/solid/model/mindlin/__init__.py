@@ -1,7 +1,2 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Jul  2 18:31:06 2018
-
-@author: Bence
-"""
-from dewloosh.solid.model.mindlin.mindlin import MindlinShell
+from .mindlin import MindlinShell

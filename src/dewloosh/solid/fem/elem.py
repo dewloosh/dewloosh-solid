@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
-from dewloosh.core import squeeze
-from dewloosh.solid.fem.preproc import fem_coeff_matrix_coo
-from dewloosh.solid.fem.elements.utils import stiffness_matrix_bulk2
-from dewloosh.solid.fem.utils import topo_to_gnum, \
-    approximation_matrix, nodal_approximation_matrix, \
-    nodal_compatibility_factors, compatibility_factors_to_coo, \
-    compatibility_factors,  penalty_factor_matrix, \
-    transform_element_stiffness_matrices as transform_stiffness
-from dewloosh.geom.utils import distribute_nodal_data, \
-    collect_nodal_data, points_of_cells
 from scipy.sparse import coo_matrix
 import numpy as np
 from collections import namedtuple
+
+from dewloosh.core import squeeze
+
+from dewloosh.geom.utils import distribute_nodal_data, \
+    collect_nodal_data, points_of_cells
+
+from .preproc import fem_coeff_matrix_coo
+from .cells.utils import stiffness_matrix_bulk2
+from .utils import topo_to_gnum, approximation_matrix, nodal_approximation_matrix, \
+    nodal_compatibility_factors, compatibility_factors_to_coo, \
+    compatibility_factors,  penalty_factor_matrix, \
+    transform_element_stiffness_matrices as transform_stiffness
 
 
 Quadrature = namedtuple('QuadratureRule', ['inds', 'pos', 'weight'])

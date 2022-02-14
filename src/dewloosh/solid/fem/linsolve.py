@@ -1,9 +1,4 @@
-from dewloosh.solid.fem.imap import index_mappers, box_spmatrix, \
-    box_rhs, unbox_lhs, box_dof_numbering
-from dewloosh.math.array import matrixform
-from dewloosh.solid.fem.utils import weighted_stiffness_bulk, \
-    irows_icols_bulk
-from dewloosh.solid.fem.preproc import fem_penalty_matrix_coo
+# -*- coding: utf-8 -*-
 import numpy as np
 from numpy import ndarray
 from scipy.sparse import csc_matrix as csc
@@ -14,6 +9,12 @@ from scipy.sparse import spmatrix
 from typing import Union
 from time import time
 from concurrent.futures import ThreadPoolExecutor
+
+from dewloosh.math.array import matrixform
+
+from .imap import index_mappers, box_spmatrix, box_rhs, unbox_lhs, box_dof_numbering
+from .utils import weighted_stiffness_bulk, irows_icols_bulk
+from .preproc import fem_penalty_matrix_coo
 
 
 arraylike = Union[ndarray, spmatrix]

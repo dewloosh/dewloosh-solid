@@ -1,14 +1,19 @@
 # -*- coding: utf-8 -*-
-from dewloosh.solid.fem.mesh import FemMesh, fem_mesh_from_obj
-from dewloosh.solid.fem.linsolve import box_fem_data_bulk, unbox_lhs
-from dewloosh.solid.fem.utils import irows_icols_bulk
-from dewloosh.core.abc.wrap import Wrapper
-from dewloosh.math.array import repeat
 from scipy.sparse import coo_matrix as npcoo, csc_matrix as npcsc
 from scipy.sparse.linalg import spsolve
 from time import time
 import numpy as np
 from scipy.sparse import isspmatrix as isspmatrix_np
+
+from dewloosh.core.abc.wrap import Wrapper
+
+from dewloosh.math.array import repeat
+
+from ..mesh import FemMesh, fem_mesh_from_obj
+from ..linsolve import box_fem_data_bulk, unbox_lhs
+from ..utils import irows_icols_bulk
+
+
 
 
 __all__ = ['Structure']
@@ -85,21 +90,17 @@ class Structure(Wrapper):
 
     def preprocess(self, *args, sparsify=False, summary=True, 
                    ensure_comp=False, **kwargs):
-        self.summary = {'preproc': {}, 'proc': {}, 'postproc': {}}
+        
         mesh = self._wrapped
 
         # --- populate model stiffness matrices ---
         self.populate_model()
-
         # --- nodal distribution factors ---
-        mesh.set_nodal_distribution_factors()  # sets mesh.celldata.ndf
-                
+        mesh.set_nodal_distribution_factors()  # sets mesh.celldata.ndf   
         # natural boundary conditions
         _f = mesh.load_vector(*args, **kwargs)
-        
         # essential boundary conditions
         _Kp_coo = mesh.penalty_matrix_coo(ensure_comp=ensure_comp, **kwargs)
-        
         # stiffness matrix
         self._K_bulk = mesh.stiffness_matrix(*args, sparse=False, **kwargs)
 
@@ -114,6 +115,7 @@ class Structure(Wrapper):
         self._krows = self._krows.flatten()
         self._kcols = self._kcols.flatten()
 
+        self.summary = {'preproc': {}, 'proc': {}, 'postproc': {}}
         if summary:
             self.summary['preproc']['sparsify'] = sparsify
 
