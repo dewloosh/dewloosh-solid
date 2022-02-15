@@ -10,8 +10,8 @@ from dewloosh.math.numint import GaussPoints as Gauss
 
 from dewloosh.geom.cells import L2 as Line
 
-from ..elem import FiniteElement
 from .utils import to_range
+from ..elem import FiniteElement
 from ..model.beam import BernoulliBeam
 
 
