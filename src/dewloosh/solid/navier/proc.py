@@ -12,13 +12,13 @@ from dewloosh.math.linalg._solve import npsolve
 @squeeze(True)
 def linsolve(LHS: ndarray, RHS: ndarray, *args, **kwarg):
     if len(LHS.shape) > 2:
-        return linsolve_M(LHS, RHS)
+        return linsolve_Mindlin(LHS, RHS)
     else:
-        return linsolve_K(LHS, RHS)
+        return linsolve_Kirchhoff(LHS, RHS)
 
 
 @njit(nogil=True, parallel=True, cache=True)
-def linsolve_K(A: ndarray, B: ndarray):
+def linsolve_Kirchhoff(A: ndarray, B: ndarray):
     nLHS, nMN = A.shape
     nRHS = B.shape[0]
     res = np.zeros((nRHS, nLHS, nMN))
@@ -30,7 +30,7 @@ def linsolve_K(A: ndarray, B: ndarray):
 
 
 @njit(nogil=True, parallel=True, cache=True)
-def linsolve_M(A: ndarray, B: ndarray):
+def linsolve_Mindlin(A: ndarray, B: ndarray):
     nLHS, nMN = A.shape[:2]
     nRHS = B.shape[0]
     res = np.zeros((nRHS, nLHS, nMN, 3))

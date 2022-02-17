@@ -1,2 +1,2 @@
 # -*- coding: utf-8 -*-
-from .navier import NavierProblem
+from .plate import NavierPlate

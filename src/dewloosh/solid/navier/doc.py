@@ -8,7 +8,6 @@ if __name__ == '__main__':
     from dewloosh.solid.navier.latex import expr_to_ltx, expr_to_ltx_breqn
     from dewloosh.solid.navier.symtools import inv_sym_3x3
 
-
     geometry_options = {
         "tmargin" : "1.5cm",
         "lmargin" : "1.5cm",
@@ -373,4 +372,4 @@ if __name__ == '__main__':
                 coordinates of the center of the rectangle.
                 """))
 
-    doc.generate_pdf('e:\\navier', clean_tex=False, compiler='pdfLaTeX')
+    doc.generate_pdf('f:\\navier', clean_tex=False, compiler='pdfLaTeX')

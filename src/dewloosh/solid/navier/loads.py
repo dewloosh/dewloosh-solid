@@ -176,27 +176,27 @@ class RectLoad(LoadGroup):
 
     def rhs(self, *args, **kwargs):
         Navier = kwargs.get('Navier', self.Navier())
-        return rect_const(Navier.size, Navier.shape, self.value, self.points)
+        return rhs_rect_const(Navier.size, Navier.shape, self.value, self.points)
 
     def __repr__(self):
         return 'RectLoad(%s)' % (dict.__repr__(self))
 
 
 @squeeze(True)
-def rect_const(size: tuple, shape: tuple, values: np.ndarray,
-               points: np.ndarray, *args, **kwargs):
+def rhs_rect_const(size: tuple, shape: tuple, values: np.ndarray,
+                   points: np.ndarray, *args, **kwargs):
     """
-    Produces coefficients for continous loads in the order [mx, my, fz].
+    Returns coefficients for continous loads in the order [mx, my, fz].
         mx : bending moment aroung global x
         my : bending moment aroung global y
         fz : force along global z
     """
-    return _rect_const(size, shape, atleast2d(values), atleast3d(points))
+    return _rect_const_(size, shape, atleast2d(values), atleast3d(points))
 
 
 @njit(nogil=True, cache=True)
-def __rect_const(size: tuple, m: int, n: int, xc: float, yc: float,
-                 w: float, h: float, values: ndarray):
+def __rect_const__(size: tuple, m: int, n: int, xc: float, yc: float,
+                   w: float, h: float, values: ndarray):
     Lx, Ly = size
     mx, my, fz = values
     return np.array([16*mx*sin((1/2)*PI*m*w/Lx) *
@@ -210,7 +210,7 @@ def __rect_const(size: tuple, m: int, n: int, xc: float, yc: float,
 
 
 @njit(nogil=True, parallel=True, cache=True)
-def _rect_const(size: tuple, shape: tuple, values: np.ndarray,
+def _rect_const_(size: tuple, shape: tuple, values: np.ndarray,
                 points: np.ndarray):
     nR = values.shape[0]
     M, N = shape
@@ -226,7 +226,7 @@ def _rect_const(size: tuple, shape: tuple, values: np.ndarray,
             for n in prange(1, N + 1):
                 mn = (m - 1) * N + n - 1
                 rhs[iR, mn, :] = \
-                    __rect_const(size, m, n, xc, yc, w, h, values[iR])
+                    __rect_const__(size, m, n, xc, yc, w, h, values[iR])
     return rhs
 
 
@@ -275,11 +275,11 @@ class PointLoad(LoadGroup):
 @squeeze(True)
 def rhs_conc(size: tuple, shape: tuple, values: np.ndarray,
              points: np.ndarray, *args, **kwargs):
-    return _conc(size, shape, atleast2d(values), atleast2d(points))
+    return _conc_(size, shape, atleast2d(values), atleast2d(points))
 
 
 @njit(nogil=True, parallel=True, cache=True)
-def _conc(size: tuple, shape: tuple, values: ndarray, points: ndarray):
+def _conc_(size: tuple, shape: tuple, values: ndarray, points: ndarray):
     nRHS = values.shape[0]
     Lx, Ly = size
     c = 4 / Lx / Ly

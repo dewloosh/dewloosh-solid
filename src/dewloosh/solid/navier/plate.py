@@ -10,7 +10,7 @@ from .postproc import postproc
 from .proc import linsolve
 
 
-class NavierProblem:
+class NavierPlate:
 
     def __init__(self, size: tuple, shape: tuple, *args,
                  D: np.ndarray = None, S: np.ndarray=None,

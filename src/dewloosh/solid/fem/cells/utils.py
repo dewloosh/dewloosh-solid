@@ -35,7 +35,6 @@ def to_range(vals: ndarray, *args, source: ndarray, target: ndarray=None,
         return _to_range(vals, source, target)
 
 
-
 @njit(nogil=True, cache=__cache)
 def element_coordinates(coords: ndarray, topo: np.ndarray):
     return cells_coords(coords, topo)

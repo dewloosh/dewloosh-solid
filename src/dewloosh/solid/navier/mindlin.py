@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+from numpy import ndarray
 from numpy.linalg import inv
 from numba import njit, prange
 
@@ -10,18 +11,18 @@ __cache = True
 
 
 @njit(nogil=True, cache=__cache)
-def glob_to_loc_layer(point: np.ndarray, bounds: np.ndarray):
+def glob_to_loc_layer(point: ndarray, bounds: ndarray):
     return (point[2] - bounds[0]) / (bounds[1] - bounds[0])
 
 
 @njit(nogil=True, cache=__cache)
-def z_to_shear_factors(z, sfx, sfy):
+def z_to_shear_factors(z: float, sfx: ndarray, sfy: ndarray):
     monoms = np.array([1, z, z**2], dtype=sfx.dtype)
     return np.dot(monoms, sfx), np.dot(monoms, sfy)
 
 
 @njit(nogil=True, cache=__cache)
-def layers_of_points(points: np.ndarray, bounds: np.ndarray):
+def layers_of_points(points: ndarray, bounds: ndarray):
     nL = bounds.shape[0]
     bins = np.zeros((nL+1,), dtype=points.dtype)
     bins[0] = bounds[0, 0]
@@ -31,7 +32,7 @@ def layers_of_points(points: np.ndarray, bounds: np.ndarray):
 
 @njit(['f8[:, :](f8[:, :], i8)', 'f4[:, :](f4[:, :], i8)'],
       nogil=True, parallel=True, cache=__cache)
-def points_of_layers(bounds: np.ndarray, nppl=3):
+def points_of_layers(bounds: ndarray, nppl=3):
     nL = bounds.shape[0]
     res = np.zeros((nL, nppl), dtype=bounds.dtype)
     for iL in prange(nL):
@@ -40,14 +41,14 @@ def points_of_layers(bounds: np.ndarray, nppl=3):
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def rotation_matrices(angles: float, dtype=np.float32):
+def rotation_matrices(angles: ndarray):
     """
     Returns transformation matrices T_126 and T_45 for each angle.
     Angles are expected in radians.
     """
     nL = len(angles)
-    T_126 = np.zeros((nL, 3, 3), dtype=dtype)
-    T_45 = np.zeros((nL, 2, 2), dtype=dtype)
+    T_126 = np.zeros((nL, 3, 3), dtype=angles.dtype)
+    T_45 = np.zeros((nL, 2, 2), dtype=angles.dtype)
     for iL in prange(nL):
         a = angles[iL] * np.pi / 180
         T_126[iL, 0, 0] = np.cos(a)**2
@@ -63,12 +64,12 @@ def rotation_matrices(angles: float, dtype=np.float32):
         T_45[iL, 0, 1] = -np.sin(a)
         T_45[iL, 1, 1] = T_45[iL, 0, 0]
         T_45[iL, 1, 0] = -T_45[iL, 0, 1]
-    return T_126.astype(dtype), T_45.astype(dtype)
+    return T_126, T_45
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def material_stiffness_matrices(C_126: np.ndarray, C_45: np.ndarray,
-                                angles: np.ndarray, dtype=np.float32):
+def material_stiffness_matrices(C_126: ndarray, C_45: ndarray,
+                                angles: ndarray):
     """
     Returns the components of the material stiffness matrices C_126 and C_45
     in the global system.
@@ -84,12 +85,11 @@ def material_stiffness_matrices(C_126: np.ndarray, C_45: np.ndarray,
     for iL in prange(nL):
         C_126_g[iL] = T_126[iL] @ C_126[iL] @ R_126_inv @ T_126[iL].T @ R_126
         C_45_g[iL] = T_45[iL] @ C_45[iL] @ R_45_inv @ T_45[iL].T @ R_45
-    return C_126_g.astype(dtype), C_45_g.astype(dtype)
+    return C_126_g, C_45_g
 
 
 @njit(nogil=True, parallel=False, fastmath=True, cache=__cache)
-def shear_factors_MT(ABDS: np.ndarray, C_126: np.ndarray,
-                     z: np.ndarray, dtype=np.float32):
+def shear_factors_MT(ABDS: ndarray, C_126: ndarray, z: ndarray):
     """
     # Does not work with parallel = True. Reason is
     propably a race condition due to using explicit parallel loops.
@@ -105,7 +105,7 @@ def shear_factors_MT(ABDS: np.ndarray, C_126: np.ndarray,
     # calculate shear factors
     eta_x = 1 / (A11 * D11 - B11**2)
     eta_y = 1 / (A22 * D22 - B22**2)
-    shear_factors = np.zeros((nL, 2, 3), dtype=dtype)
+    shear_factors = np.zeros((nL, 2, 3), dtype=ABDS.dtype)
 
     for iL in prange(nL-1):
         for iP in prange(2):
@@ -132,12 +132,12 @@ def shear_factors_MT(ABDS: np.ndarray, C_126: np.ndarray,
             (0.5 * (zi1**2 - zi0**2) * A22 - (zi1 - zi0) * B22)
         shear_factors[iL, 1, iP + 1:] += dsfy
     shear_factors[iL, :, 2] = 0.
-    return shear_factors.astype(dtype)
+    return shear_factors
 
 
 @njit(nogil=True, cache=__cache)
-def shear_factors_ST(ABDS: np.ndarray, C_126: np.ndarray,
-                     z: np.ndarray, dtype=np.float32):
+def shear_factors_ST(ABDS: ndarray, C_126: ndarray,
+                     z: ndarray):
     """
     Single-thread, sequential implementation of calculation 
     of shear factors for multi-layer Mindlin shells.
@@ -153,7 +153,7 @@ def shear_factors_ST(ABDS: np.ndarray, C_126: np.ndarray,
     # calculate shear factors
     eta_x = 1 / (A11 * D11 - B11**2)
     eta_y = 1 / (A22 * D22 - B22**2)
-    shear_factors = np.zeros((nL, 2, 3), dtype=dtype)
+    shear_factors = np.zeros((nL, 2, 3), dtype=ABDS.dtype)
 
     for iL in range(nL):
         zi = z[iL]
@@ -175,13 +175,12 @@ def shear_factors_ST(ABDS: np.ndarray, C_126: np.ndarray,
             eta_y * C_126[iL, 1, 1] * (0.5 * (zi[2]**2 - zi[0]**2) * A22 -
                                        (zi[2] - zi[0]) * B22)
     shear_factors[nL-1, :, 2] = 0.
-    return shear_factors.astype(dtype)
+    return shear_factors
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def shear_correction_data(ABDS: np.ndarray, C_126: np.ndarray,
-                          C_45: np.ndarray, bounds: np.ndarray,
-                          dtype=np.float32):
+def shear_correction_data(ABDS: ndarray, C_126: ndarray,
+                          C_45: ndarray, bounds: ndarray):
     """
     FIXME : Results are OK, but a bit slower than expected when measured
     against the pure python implementation.
@@ -190,16 +189,16 @@ def shear_correction_data(ABDS: np.ndarray, C_126: np.ndarray,
     nL = bounds.shape[0]  # number of layers
 
     # z coordinate of 3 points per each layer
-    z = points_of_layers(bounds, 3, dtype)
+    z = points_of_layers(bounds, 3)
 
     # calculate shear factors
-    shear_factors = shear_factors_ST(ABDS, C_126, z, dtype)
+    shear_factors = shear_factors_ST(ABDS, C_126, z)
 
     # compile shear factors
-    sf = np.zeros((nL, 2, 3), dtype=dtype)
+    sf = np.zeros((nL, 2, 3), dtype=ABDS.dtype)
     for iL in prange(nL):
         monoms_inv = inv(np.array([[1, z, z**2] for z in z[iL]],
-                                  dtype=dtype))
+                                  dtype=ABDS.dtype))
         sf[iL, 0] = monoms_inv @ shear_factors[iL, 0]
         sf[iL, 1] = monoms_inv @ shear_factors[iL, 1]
 
@@ -209,8 +208,8 @@ def shear_correction_data(ABDS: np.ndarray, C_126: np.ndarray,
     pot_c_y = 0.5 / ABDS[7, 7]
 
     # positions and weights of Gauss-points
-    gP = np.array([-np.sqrt(3/5), 0, np.sqrt(3/5)], dtype=dtype)
-    gW = np.array([5/9, 8/9, 5/9], dtype=dtype)
+    gP = np.array([-np.sqrt(3/5), 0, np.sqrt(3/5)], dtype=ABDS.dtype)
+    gW = np.array([5/9, 8/9, 5/9], dtype=ABDS.dtype)
 
     # potential energy using parabolic stress distribution
     # and unit shear force
@@ -222,7 +221,7 @@ def shear_correction_data(ABDS: np.ndarray, C_126: np.ndarray,
         for iG in prange(3):
             ziG = 0.5 * ((bounds[iL, 1] + bounds[iL, 0]) +
                          gP[iG] * (bounds[iL, 1] - bounds[iL, 0]))
-            monoms = np.array([1, ziG, ziG**2], dtype=dtype)
+            monoms = np.array([1, ziG, ziG**2], dtype=ABDS.dtype)
             sfx = np.dot(monoms, sf[iL, 0])
             sfy = np.dot(monoms, sf[iL, 1])
             pot_p_x += 0.5 * (sfx**2) * dJ * gW[iG] / Gxi
@@ -230,23 +229,21 @@ def shear_correction_data(ABDS: np.ndarray, C_126: np.ndarray,
     kx = pot_c_x / pot_p_x
     ky = pot_c_y / pot_p_y
 
-    return np.array([[kx, 0], [0, ky]]).astype(dtype), \
-        shear_factors.astype(dtype)
+    return np.array([[kx, 0], [0, ky]]), shear_factors
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def stiffness_data_Mindlin(C_126: np.ndarray, C_45: np.ndarray,
-                           angles: np.ndarray, bounds: np.ndarray,
-                           nZ=3, dtype=np.float32):
+def stiffness_data_Mindlin(C_126: ndarray, C_45: ndarray,
+                           angles: ndarray, bounds: ndarray,
+                           nZ=3):
     """
     FIXME Call
         Ks, sf = shear_correction_data(ABDS, C_126_g, C_45_g, bounds, dtype)
     is a bit slow for some reason.
     """
-    ABDS = np.zeros((8, 8), dtype=dtype)
+    ABDS = np.zeros((8, 8), dtype=C_126.dtype)
     nL = C_126.shape[0]
-    bounds = bounds.astype(dtype)
-    C_126_g, C_45_g = material_stiffness_matrices(C_126, C_45, angles, dtype)
+    C_126_g, C_45_g = material_stiffness_matrices(C_126, C_45, angles)
     for iL in prange(nL):
         ABDS[0:3, 0:3] += C_126_g[iL] * (bounds[iL, 1] - bounds[iL, 0])
         ABDS[0:3, 3:6] += (1 / 2) * C_126_g[iL] * \
@@ -255,7 +252,7 @@ def stiffness_data_Mindlin(C_126: np.ndarray, C_45: np.ndarray,
             (bounds[iL, 1]**3 - bounds[iL, 0]**3)
         ABDS[6:8, 6:8] += C_45_g[iL] * (bounds[iL, 1] - bounds[iL, 0])
     ABDS[3:6, 0:3] = ABDS[0:3, 3:6]
-    Ks, sf = shear_correction_data(ABDS, C_126_g, C_45_g, bounds, dtype)
+    Ks, sf = shear_correction_data(ABDS, C_126_g, C_45_g, bounds)
     return ABDS, Ks, sf
 
 

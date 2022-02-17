@@ -31,13 +31,13 @@ def postproc(ABDS: nparray, points: nparray, *args,
         assert shape is not None
         assert points is not None
         if model.lower() in ['mindlin', 'm']:
-            res2d = pproc_Mindlin_2D(np.array(size).astype(dtype),
+            res2d = pproc_Mindlin_2d(np.array(size).astype(dtype),
                                      np.array(shape).astype(itype),
                                      atleast2d(points)[:, :2].astype(dtype),
                                      atleast4d(solution).astype(dtype),
                                      ABDS[:, :3, :3], ABDS[:, 3:, 3:])
         elif model.lower() in ['kirchhoff', 'k']:
-            res2d = pproc_Kirchhoff_2D(np.array(size).astype(dtype),
+            res2d = pproc_Kirchhoff_2d(np.array(size).astype(dtype),
                                        np.array(shape).astype(itype),
                                        atleast2d(points)[:, :2].astype(dtype),
                                        atleast3d(solution).astype(dtype),
@@ -65,7 +65,7 @@ def postproc(ABDS: nparray, points: nparray, *args,
 
 
 @njit(nogil=True, parallel=True, cache=True)
-def pproc_Mindlin_2D(size, shape: nparray, points: nparray,
+def pproc_Mindlin_2d(size, shape: nparray, points: nparray,
                      solution: nparray, D: nparray, S: nparray):
     """
     JIT-compiled function that calculates post-processing quantities 
@@ -157,7 +157,7 @@ def pproc_Mindlin_2D(size, shape: nparray, points: nparray,
 
 
 @njit(nogil=True, parallel=True, cache=True)
-def pproc_Kirchhoff_2D(size, shape: nparray, points: nparray,
+def pproc_Kirchhoff_2d(size, shape: nparray, points: nparray,
                        solution: nparray, D: nparray, S: nparray,
                        loads: nparray):
     """
