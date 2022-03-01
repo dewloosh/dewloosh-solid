@@ -1,2 +1,2 @@
 # -*- coding: utf-8 -*-
-from .mindlin import MindlinShell
+from .mindlin import MindlinShell, MindlinPlate

@@ -103,8 +103,10 @@ class LoadGroup(Library):
                 continue
             if 'type' in value:
                 cls = LoadGroup.string_to_dtype(value['type'])
-                value['key'] = addr[-1]
-                res[addr] = cls(**value)
+            else: 
+                cls = LoadGroup
+            value['key'] = addr[-1]
+            res[addr] = cls(**value)
         return res
 
     def __repr__(self):

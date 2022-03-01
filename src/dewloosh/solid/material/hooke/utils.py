@@ -1,14 +1,5 @@
 # -*- coding: utf-8 -*-
-from scipy.optimize import minimize
-from sympy import symbols, Eq, solve, false, true
-from sympy.logic.boolalg import Boolean
-import numpy as np
-
 from dewloosh.core.tools.kwargtools import getasany
-
-from dewloosh.math.function import Function
-
-from .sym import smat_sym_ortho_3d
 
 
 standard_keys_ortho = ['E1', 'E2', 'E3', 'NU12', 'NU13', 'NU23', 'G12', 'G13', 'G23']
@@ -60,85 +51,6 @@ def has_std_params_ortho(**params) -> bool:
 def has_all_params_ortho(**params) -> bool:
     """ Returns True, if all 12 keys of an orthotropic material are provided."""
     return len(missing_params_ortho(**params)) == 0
-
-
-def finalize_params_ortho(**params) -> dict:
-    """
-    Given at lest 3 bulk parameters (Ei, or NUij), the function 
-    determines the remaining ones from symmetry conditions for
-    a 3d orthotropic setup. Returns a dictionary that contains
-    all 12 engineering constants.
-    """
-    if has_all_params_ortho(**params):
-        return params
-    E, NU, _ = group_mat_params(**params)
-    subs = [(key, val) for key, val in {**E, **NU} if val is not None]
-    assert len(subs) > 2, "There are too many missing parameters!"
-    S = smat_sym_ortho_3d()[:3, :3]
-    S_skew = S - S.T
-    residual = S_skew.subs(subs)
-    error = residual.norm()
-    if len(error.free_symbols) == 0:
-        return params
-    f = Function(error)
-    vars = f.variables
-    x0 = np.zeros((len(vars),))
-    res = minimize(f, x0, method='Nelder-Mead', tol=1e-6)
-    params_ = {str(sym) : val for sym, val in zip(vars, res.x)}
-    params.update(params_)
-    return params
-
-
-def finalize_params_triso(*args, isoplane='23', **params) -> dict:
-    """
-    Given exactly 5 independent parameters, the function determines the 
-    remaining ones from symmetry conditions for a 3d transversely 
-    isotropic setup. Returns a dictionary that contains all 12 
-    engineering constants.
-    """
-    
-    # get exactly 5 input parameters
-    E, NU, G = group_mat_params(**params)
-    str_to_sym = lambda k : symbols(k, real=True)
-    subs = {str_to_sym(key) : val \
-        for key, val in {**E, **NU, **G}.items() if val is not None}
-    assert len(subs) == 5, "Exactly 5 independent material constants must be provided "\
-        "for a transversely isotropic material!"
-
-    E1, E2, E3, G23, G12, G13, NU12, NU21, NU13, NU31, NU23, NU32 = \
-        symbols('E1 E2 E3 G23 G12 G13 NU12 NU21 NU13 NU31 NU23 NU32', real=True)
-    eqs = []
-    if '1' not in isoplane:
-        _G13 = getasany(['G13', 'G31', 'G12', 'G21'], None, **params)
-        assert _G13 is not None, "Out of plane shear modulus G13 (=G12) \
-            must be provided as either G13, G31, G12 or G21!"
-        eqs.append(Eq(E2 - E3, 0))
-        eqs.append(Eq(NU12 - NU13, 0))
-        eqs.append(Eq(NU21 - NU31, 0))
-        eqs.append(Eq(NU23 - NU32, 0))
-        eqs.append(Eq(G12 - G13, 0))
-        eqs.append(Eq(G23 * 2 * (1 + NU23) - E2, 0))
-        eqs.append(Eq(NU12*E2 - NU21*E1, 0))
-        #eqs.append(Eq(NU13*E3 - NU31*E1, 0))  # not independent
-        #eqs.append(Eq(NU23*E3 - NU32*E2, 0))  # not independent
-
-    eqs = [eq.subs(subs) for eq in eqs]
-    for eq in eqs:
-        if isinstance(eq, Boolean):
-            if eq is false:
-                raise HookeError("There is contradiction in the input data!")
-            elif eq is true:
-                raise HookeError("Input parameters are not all independent!")
-        else:
-            assert isinstance(eq, Eq), "Unknown error in input data!"
-
-    free_symbols = [eq.free_symbols for eq in eqs]
-    vars = set.union(*free_symbols)
-    sol = solve(eqs, vars, dict=True)[0]
-    subs.update(sol)
-    res = {str(key) : val for key, val in subs.items()}
-    assert has_all_params_ortho(**res), "Unknown error!"
-    return res
 
 
 def get_iso_params(*args, **kwargs):
@@ -195,7 +107,7 @@ def get_triso_params(*args, **kwargs) -> dict:
         'NU12' : NU12, 'NU13' : NU13, 'NU23' : NU23,
         'NU21' : NU21, 'NU31' : NU31, 'NU32' : NU32,
         'G12' : G12, 'G13' : G13, 'G23' : G23}
-    return finalize_params_triso(**params)
+    return params
 
 
 def get_ortho_params(*args, **kwargs) -> dict:
@@ -230,8 +142,7 @@ def get_ortho_params(*args, **kwargs) -> dict:
         'NU12' : NU12, 'NU13' : NU13, 'NU23' : NU23,
         'NU21' : NU21, 'NU31' : NU31, 'NU32' : NU32,
         'G12' : G12, 'G13' : G13, 'G23' : G23}
-    return finalize_params_ortho(**params)
-
+    return params
 
 if __name__ == '__main__':
     get_iso_params(E=1, NU=0.2)

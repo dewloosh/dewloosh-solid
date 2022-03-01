@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-from dewloosh.math.array import isboolarray, is1dfloatarray
-from dewloosh.math.linalg.sparse.csr import csr_matrix as csr
+from dewloosh.core import squeeze
+
+from dewloosh.math.array import isboolarray, is1dfloatarray, atleast3d
 
 from dewloosh.geom import PolyData
 
@@ -86,31 +87,16 @@ class FemMesh(PolyData):
         return np.vstack(list(map(foo, blocks)))
 
     def penalty_matrix_coo(self, *args, eliminate_zeros=True,
-                           sum_duplicates=True, ensure_comp=False, **kwargs):
+                           sum_duplicates=True, ensure_comp=False, 
+                           distribute=False, **kwargs):
         """A penalty matrix that enforces essential(Dirichlet) 
         boundary conditions. Returns a scipy sparse matrix in coo format."""
+        
         # essential boundary conditions
         fixity = self.root().pointdata.fixity.to_numpy()
-        K_coo = fem_penalty_matrix_coo(pen=fixity)
-        """
-        # distribute nodal fixity
-        fixity = self.root().pointdata.fixity.to_numpy().astype(int)
-        blocks = list(self.cellblocks(inclusive=True))
-        def foo(b): return b.celldata.distribute_nodal_data(fixity, 'fixity')
-        list(map(foo, blocks))
-        # assemble
-        def foo(b): return b.celldata.penalty_matrix_coo()
-        K_coo = np.sum(list(map(foo, blocks))).tocoo()
-        """
-        if ensure_comp and not self.is_compatible():
-            # penalty arising from incompatibility
-            p = kwargs.get('compatibility_penalty', None)
-            if p is not None:
-                K_coo += self.compatibility_penalty_matrix_coo(eliminate_zeros=False, p=p)
-        if eliminate_zeros:
-            K_coo.eliminate_zeros()
-        if sum_duplicates:
-            K_coo.sum_duplicates()
+        K_coo = fem_penalty_matrix_coo(values=fixity, eliminate_zeros=eliminate_zeros, 
+                                       sum_duplicates=sum_duplicates)
+                        
         return K_coo.tocoo()
     
     def approximation_matrix_coo(self, *args, eliminate_zeros=True, **kwargs):
@@ -129,51 +115,36 @@ class FemMesh(PolyData):
             res.eliminate_zeros()
         return res
     
-    def compatibility_penalty_matrix_coo(self, *args, eliminate_zeros=True, p=1e12, **kwargs):
-        blocks = self.cellblocks(inclusive=True)
-        nam_csr_tot = csr(self.nodal_approximation_matrix_coo(eliminate_zeros=False))
-        def foo(b): return b.celldata.compatibility_penalty_matrix_coo(nam_csr_tot=nam_csr_tot, p=p)
-        res = np.sum(list(map(foo, blocks))).tocoo()
-        if eliminate_zeros:
-            res.eliminate_zeros()
-        return res
-
+    @squeeze(True)
     def load_vector(self, *args, **kwargs):
-        loads = self.root().pointdata.loads.to_numpy()
-        """
-        if not self.is_compatible():
-            # distribute nodal loads
-            blocks = list(self.cellblocks(inclusive=True))
-            def foo(b): return b.celldata.distribute_nodal_data(loads, 'loads')
-            list(map(foo, blocks))
-            # collect nodal loads
-            N = len(loads)
-            def foo(b): return b.celldata.collect_nodal_data('loads', N=N)
-            loads = np.sum(list(map(foo, blocks)), axis=0)
-        """
-        return fem_load_vector(vals=loads)
+        # pointdata
+        nodal_data = self.root().pointdata.loads.to_numpy()
+        nodal_data = atleast3d(nodal_data, back=True)  # (nP, nDOF, nRHS)
+        f_p = fem_load_vector(values=nodal_data, squeeze=False)
+        # celldata
+        #blocks = self.cellblocks(inclusive=True)
+        #def foo(b): return b.celldata.body_load_vector(squeeze=False, shape=shp)
+        #f_c = np.sum(list(map(foo, blocks)))
+        return f_p
     
     def prostproc_dof_solution(self, *args, **kwargs):
         blocks = self.cellblocks(inclusive=True)
         dofsol = self.root().pointdata.dofsol.to_numpy()
         def foo(b): return b.celldata.prostproc_dof_solution(dofsol=dofsol)
         list(map(foo, blocks))
-        
+    
+    @squeeze(True)
     def nodal_dof_solution(self, *args, flatten=False, **kwargs):
+        dofsol = self.root().pointdata.dofsol.to_numpy()
         if flatten:
-            return self.root().pointdata.dofsol.to_numpy().flatten()
+            if len(dofsol.shape) == 2:
+                return dofsol.flatten()
+            else:
+                nN, nDOFN, nRHS = dofsol.shape
+                return dofsol.reshape((nN * nDOFN, nRHS))
         else:
             return self.root().pointdata.dofsol.to_numpy()
-        
-    def element_dof_solution(self, *args, **kwargs):
-        try:
-            res = self.root().pointdata.dofsol.to_numpy()
-        except Exception:
-            dofsol2d = self.nodal_dof_solution(*args, **kwargs)
-            res = None
-        finally:
-            return res 
-    
+            
     def stresses_at_cells_nodes(self, *args, **kwargs):
         blocks = self.cellblocks(inclusive=True)
         def foo(b): return b.celldata.stresses_at_nodes(*args, **kwargs)
@@ -209,12 +180,7 @@ class FemMesh(PolyData):
             except Exception:
                 raise RuntimeError("Invalid model type {}".format(type(m)))
 
-    def is_compatible(self):
-        blocks = self.cellblocks(inclusive=True)
-        def fltr(b): return not b.celldata.compatible
-        return len(list(filter(fltr, blocks))) == 0
-
-
+    
 def fem_mesh_from_obj(*args, **kwargs):
     raise NotImplementedError
 

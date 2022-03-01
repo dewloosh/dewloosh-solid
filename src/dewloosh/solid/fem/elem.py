@@ -5,6 +5,8 @@ from collections import namedtuple
 
 from dewloosh.core import squeeze
 
+from dewloosh.math.array import atleastnd, ascont
+
 from dewloosh.geom.utils import distribute_nodal_data, \
     collect_nodal_data, points_of_cells
 
@@ -12,8 +14,8 @@ from .preproc import fem_coeff_matrix_coo
 from .cells.utils import stiffness_matrix_bulk2
 from .utils import topo_to_gnum, approximation_matrix, nodal_approximation_matrix, \
     nodal_compatibility_factors, compatibility_factors_to_coo, \
-    compatibility_factors,  penalty_factor_matrix, \
-    transform_element_stiffness_matrices as transform_stiffness
+    compatibility_factors,  penalty_factor_matrix, assemble_load_vector
+from .utils import tr_cells_1d_in_multi, tr_cells_1d_out_multi, tr_cells_2d_out
 
 
 Quadrature = namedtuple('QuadratureRule', ['inds', 'pos', 'weight'])
@@ -88,6 +90,9 @@ class FiniteElement:
     # !TODO : this should be implemented at model
     def element_dcm_matrices(self, *args, frames=None, **kwargs):
         return None
+    
+    def integrate_body_loads(self, *args, **kwargs):
+        raise NotImplementedError
 
     def local_coordinates(self, *args, frames=None, _topo=None, **kwargs):
         frames = self.frames.to_numpy() if frames is None else frames
@@ -200,7 +205,7 @@ class FiniteElement:
             if frames is not None:
                 dcm = self.element_dcm_matrices(frames=frames)
                 if dcm is not None:
-                    return transform_stiffness(res, dcm)
+                    return tr_cells_2d_out(res, dcm)
                 else:
                     return res
             else:
@@ -224,3 +229,45 @@ class FiniteElement:
         K_bulk = self.stiffness_matrix(*args, _topo=topo, **kwargs)
         gnum = self.global_dof_numbering(topo=topo)
         return fem_coeff_matrix_coo(K_bulk, *args, inds=gnum, N=N, **kwargs)
+    
+    @squeeze(True)
+    def body_load_vector(self, values=None, *args, frame=None, constant=False, **kwargs):
+        # prepare
+        dcm = None
+        if values is None:
+            values = self.loads.to_numpy()
+            values = atleastnd(values, 4, back=True)  # (nE, nNE, nDOF, nRHS)
+        else:
+            if constant:
+                values = atleastnd(values, 3, back=True)  # (nE, nDOF, nRHS)
+                nE, nDOF, nRHS = values.shape
+                nNE = self.__class__.NNODE
+                values_ = np.zeros((nE, nNE, nDOF, nRHS), dtype=values.dtype)
+                for i in range(nNE):
+                    values_[:, i, :, :] = values
+                values = values_
+            values = atleastnd(values, 4, back=True)  # (nE, nNE, nDOF, nRHS)
+            if frame is not None:           
+                nE, nNE, nDOF, nRHS = values.shape
+                dcm = self.element_dcm_matrices(source=frame)
+                values = values.reshape(nE, nNE * nDOF, nRHS) # (nE, nNE, nDOF, nRHS) -> (nE, nNE * nDOF, nRHS)
+                values = np.swapaxes(values, 1, 2)  # (nE, nNE * nDOF, nRHS) -> (nE, nRHS, nNE * nDOF)
+                values = ascont(values)
+                values = tr_cells_1d_in_multi(values, dcm)
+                values = np.swapaxes(values, 1, 2)  # (nE, nRHS, nNE * nDOF) -> (nE, nNE * nDOF, nRHS)
+                values = values.reshape(nE, nNE, nDOF, nRHS) # (nE, nNE * nDOF, nRHS) -> (nE, nNE, nDOF, nRHS) 
+                values = ascont(values)
+                
+        # integrate
+        nodal_loads = self.integrate_body_loads(values)  # (nE, nNE * nDOF, nRHS)
+        # transform
+        dcm = self.element_dcm_matrices()
+        nodal_loads = np.swapaxes(nodal_loads, 1, 2)  # (nE, nNE * nDOF, nRHS) -> (nE, nRHS, nNE * nDOF)
+        nodal_loads = ascont(nodal_loads)
+        nodal_loads = tr_cells_1d_out_multi(nodal_loads, dcm)
+        nodal_loads = np.swapaxes(nodal_loads, 1, 2)  # (nE, nRHS, nNE * nDOF) -> (nE, nNE * nDOF, nRHS)
+        #assemble  
+        topo = self.nodes.to_numpy()
+        gnum = self.global_dof_numbering(topo=topo)
+        nX = len(self.pointdata) * self.__class__.NDOFN
+        return assemble_load_vector(nodal_loads, gnum, nX)  # (nX, nRHS)

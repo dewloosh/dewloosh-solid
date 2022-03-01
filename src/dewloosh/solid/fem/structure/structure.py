@@ -6,26 +6,26 @@ import numpy as np
 from scipy.sparse import isspmatrix as isspmatrix_np
 
 from dewloosh.core.abc.wrap import Wrapper
+from dewloosh.core import squeeze
 
 from dewloosh.math.array import repeat
 
 from ..mesh import FemMesh, fem_mesh_from_obj
 from ..linsolve import box_fem_data_bulk, unbox_lhs
 from ..utils import irows_icols_bulk
+from ..preproc import build_fem_nodal_data
 
 
+from ...config import __haspardiso__
 
+if __haspardiso__:
+    import pypardiso as ppd
+    from pypardiso import PyPardisoSolver
+    #from pypardiso.scipy_aliases import pypardiso_solver
 
 __all__ = ['Structure']
 
 
-try:
-    import pypardiso as ppd
-    from pypardiso import PyPardisoSolver
-    #from pypardiso.scipy_aliases import pypardiso_solver
-    __haspardiso__ = True
-except Exception:
-    __haspardiso__ = False
 """
 PARDISO MATRIX TYPES
 1
@@ -73,14 +73,16 @@ class Structure(Wrapper):
         self.process(*args, **kwargs)
         self.postprocess(*args, **kwargs)
     
-    def populate_model(self, *args, **kwargs):
+    def initialize(self, *args, **kwargs):        
         blocks = self.mesh.cellblocks(inclusive=True)
         for block in blocks:
             nE = len(block.celldata)
-            
+                            
             # populate material stiffness matrices
             if not 'mat' in block.celldata.fields:
-                C = repeat(block.material_stiffness_matrix(), nE)
+                C = block.material_stiffness_matrix()
+                if not len(C.shape) == 3:
+                    C = repeat(block.material_stiffness_matrix(), nE)
                 block.celldata._wrapped['mat'] = C
             
             # populate frames
@@ -94,7 +96,7 @@ class Structure(Wrapper):
         mesh = self._wrapped
 
         # --- populate model stiffness matrices ---
-        self.populate_model()
+        self.initialize()
         # --- nodal distribution factors ---
         mesh.set_nodal_distribution_factors()  # sets mesh.celldata.ndf   
         # natural boundary conditions
@@ -118,16 +120,34 @@ class Structure(Wrapper):
         self.summary = {'preproc': {}, 'proc': {}, 'postproc': {}}
         if summary:
             self.summary['preproc']['sparsify'] = sparsify
+            
+    def to_standard_form(self, *args, sparsify=False, ensure_comp=False, **kwargs):
+        mesh = self._wrapped
+        f = mesh.load_vector()
+        # essential boundary conditions
+        Kp_coo = mesh.penalty_matrix_coo(ensure_comp=ensure_comp, **kwargs)
+        # stiffness matrix
+        K_bulk = mesh.stiffness_matrix(*args, sparse=False, **kwargs)
+        # generalized topology
+        gnum = mesh.element_dof_numbering()
+        
+        # assembly and boxing
+        _Kp_coo, _gnum, _f, _loc_to_glob = box_fem_data_bulk(Kp_coo, gnum, f)
+        _f = npcsc(_f) if sparsify else _f
+        _krows, _kcols = irows_icols_bulk(_gnum)
+        _krows = _krows.flatten()
+        _kcols = _kcols.flatten()
+        return K_bulk, _Kp_coo, _f, _gnum, _loc_to_glob
 
-    def process(self, *args, use_umfpack=True, summary=True,
+    def process(self, *args, use_umfpack=True, summarize=True,
                 permc_spec='COLAMD', solver='pardiso', mtype=11, **kwargs):
         Kr_coo = npcoo((self._K_bulk.flatten(), (self._krows, self._kcols)),
                        shape=(self._N, self._N), dtype=self._K_bulk.dtype)
         K_coo = Kr_coo + self._Kp_coo
         K_coo.eliminate_zeros()
         K_coo.sum_duplicates()
-        t0 = time()
         
+        t0 = time()
         if solver == 'pardiso' and __haspardiso__:
             if mtype == 11:
                 self._du = ppd.spsolve(K_coo, self._f)
@@ -140,19 +160,19 @@ class Structure(Wrapper):
                                permc_spec=permc_spec,
                                use_umfpack=use_umfpack).astype(np.float64)
         else:
-            raise NotImplementedError("Selected solver '{}' is not supported!".format(solver))
-        
+            raise NotImplementedError("Selected solver '{}' is not supported!".format(solver))      
         dt = time() - t0
+        
         if isspmatrix_np(self._du):
             self._du = self._du.todense()
-        if summary:
+        if summarize:
             self.summary['proc'] = {
-                'time [ms]': dt * 1000,
+                'time [s]': dt * 1000,
                 'N': self._du.shape[0],
-                'use_umfpack': use_umfpack,
-                'permc_spec': permc_spec,
-                'solver': solver
-            }
+                'solver': solver}
+            if solver == 'scipy':
+                self.summary['proc']['use_umfpack'] = use_umfpack
+                self.summary['proc']['permc_spec'] = permc_spec
 
     def postprocess(self, *args, summary=True, cleanup=True, **kwargs):
         # unbox
@@ -162,7 +182,11 @@ class Structure(Wrapper):
         mesh = self._wrapped
         nDOFN = mesh.NDOFN
         nN = mesh.number_of_points()
-        mesh.pointdata['dofsol'] = np.reshape(du, (nN, nDOFN))
+        nRHS = 1 if len(du.shape) == 1 else du.shape[-1]
+        if nRHS == 1:
+            mesh.pointdata['dofsol'] = np.reshape(du, (nN, nDOFN))
+        else:
+            mesh.pointdata['dofsol'] = np.reshape(du, (nN, nDOFN, nRHS))
         #mesh.postproc_dof_solution()
 
         # clean up
@@ -175,12 +199,10 @@ class Structure(Wrapper):
             self.summary['number of elements'] = mesh.number_of_cells()
             self.summary['number of nodes'] = nN
             self.summary['dofs per node'] = nDOFN
-
-    def dofsol(self, *args, flatten=True, **kwargs):
-        if flatten:
-            return self.mesh.pointdata.dofsol.to_numpy().flatten()
-        else:
-            return self.mesh.pointdata.dofsol.to_numpy()
+    
+    @squeeze(True)
+    def nodal_dof_solution(self, *args, flatten=False, **kwargs):
+        return self.mesh.nodal_dof_solution(*args, flatten=flatten, squeeze=False, **kwargs)
 
 
 if __name__ == '__main__':

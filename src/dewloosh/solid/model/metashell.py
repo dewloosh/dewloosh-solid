@@ -4,6 +4,7 @@ from abc import abstractmethod
 
 from dewloosh.core.types import Library
 from dewloosh.core.tools.kwargtools import getasany, allinkwargs, anyinkwargs
+from dewloosh.core.types.defaultdict import parsedicts_addr
 
 
 class MetaSurface(Library):
@@ -11,98 +12,59 @@ class MetaSurface(Library):
     Base object implementing methods that both a folder (a shell) and a
     file (a layer) can posess.
     """
-
+    
+    __layerclass__ = None
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._angle = getasany(['angle', 'a'], 0, **kwargs)
-        self.t = None
 
     @property
     def angle(self):
-        if self._angle is None:
-            if self.parent is not None:
-                return self.parent.angle
-            else:
-                return self._angle
+        _angle = self.get('angle', None)
+        if _angle is None:
+            return None if self.is_root() else self.parent.angle
         else:
-            return self._angle
+            return _angle
 
     @angle.setter
     def angle(self, value):
-        if self.has_file():
-            for layer in self.iterfiles(inclusive=True):
-                layer._angle = value
+        if self.__layerclass__ is None:
+            self['angle'] = value
         else:
-            self._angle = value
-
-
-class Surface(MetaSurface):
-
-    def __init__(self, *args, layertype=None, **kwargs):
-        assert layertype is not None, "Type of layer must be specified!"
-        self._layertype = layertype
-        super().__init__(*args, **kwargs)
-
-    def Layer(self, *args, **kwargs):
-        return self._layertype(*args, **kwargs)
-
+            for layer in self.containers(dtype=self.__layerclass__):
+                layer['angle'] = value
+            self['angle'] = 0
+            del self['angle']
+            
     @property
-    def numLayers(self):
-        return len(self.layers())
+    def hooke(self):
+        _hooke = self.get('hooke', None)
+        if _hooke is None:
+            return None if self.is_root() else self.parent.hooke
+        else:
+            return _hooke
 
+    @hooke.setter
+    def hooke(self, value):
+        if self.__layerclass__ is None:
+            self['hooke'] = value
+        else:
+            for layer in self.containers(dtype=self.__layerclass__):
+                layer['hooke'] = value
+            self['hooke'] = 0
+            del self['hooke']
+    
     @property
-    def layertype(self):
-        return self._layertype
-
-    def layers(self):
-        return [layer for layer in self.iterlayers()]
-
-    def iterlayers(self):
-        return self.iterfiles()
-
-    def stiffness_matrix(self):
-        res = np.zeros(self._layertype.__shape__)
-        for layer in self.layers():
-            res += layer.stiffness_matrix()
-        return res
-
-    def add_layer(self, layer: 'Layer' = None, *args,
-                  freeze=False, **kwargs):
-        layer = self.new_file(layer)
-        if not freeze:
-            self.zip()
-        return layer
-
-    def add_layers(self, *args, **kwargs):
-        try:
-            [self.add_layer(layer, freeze=True) for layer in args]
-            self.zip()
-            return True
-        except Exception:
-            return False
-
-    def zip(self):
-        """
-        Sets thickness ranges for the layers.
-        """
-        layers = self.layers()
-        t = sum([layer.t for layer in layers])
-        tmin, tmax = -t/2, t/2
-        layers[0].tmin = tmin
-        nLayers = len(layers)
-        for i in range(nLayers-1):
-            layers[i].tmax = layers[i].tmin + layers[i].t
-            layers[i+1].tmin = layers[i].tmax
-        layers[-1].tmax = tmax
-
-        for layer in layers:
-            layer.zi = [layer.loc_to_z(l_) for l_ in layer.__loc__]
-
-        self.t = t
-        self.tmin = tmin
-        self.tmax = tmax
-        return True
-
+    def t(self):
+        return self.get('thickness', None)
+    
+    @t.setter
+    def t(self, value):
+        if self.__layerclass__ is None:
+            self['thickness'] = value
+        else:
+            raise RuntimeError
+        
 
 class Layer(MetaSurface):
     """
@@ -114,7 +76,7 @@ class Layer(MetaSurface):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.material = getasany(['material', 'm'], **kwargs)
+        self.material = getasany(['material', 'm', 'hooke'], **kwargs)
         # set thickness
         self.tmin = None
         self.tmax = None
@@ -134,7 +96,7 @@ class Layer(MetaSurface):
             else:
                 self.tmin = (-1) * self.t / 2
                 self.tmax = self.t / 2
-
+                
     def loc_to_z(self, loc):
         """
         Returns height of a local point by linear interpolation.
@@ -144,4 +106,58 @@ class Layer(MetaSurface):
 
     @abstractmethod
     def stiffness_matrix(self):
-        pass
+        raise NotImplementedError
+    
+    
+class Surface(MetaSurface):
+
+    __layerclass__ = Layer
+
+    def Layer(self, *args, **kwargs):
+        return self.__layerclass__(*args, **kwargs)
+    
+    def Hooke(self):
+        raise NotImplementedError
+
+    def layers(self):
+        return [layer for layer in self.containers(dtype=self.__layerclass__)]
+
+    def iterlayers(self):
+        return self.containers(dtype=self.__layerclass__)
+
+    def stiffness_matrix(self):
+        self._set_layers()
+        res = np.zeros(self.__layerclass__.__shape__)
+        for layer in self.iterlayers():
+            res += layer.stiffness_matrix()
+        return res
+
+    def _set_layers(self):
+        """
+        Sets thickness ranges for the layers.
+        """
+        layers = self.layers()
+        t = sum([layer.t for layer in layers])
+        layers[0].tmin = -t/2
+        nLayers = len(layers)
+        for i in range(nLayers-1):
+            layers[i].tmax = layers[i].tmin + layers[i].t
+            layers[i+1].tmin = layers[i].tmax
+        layers[-1].tmax = t/2
+        for layer in layers:
+            layer.zi = [layer.loc_to_z(l_) for l_ in layer.__loc__]
+        return True
+    
+    @classmethod
+    def from_dict(cls, d: dict = None, **kwargs) -> 'Surface':  
+        res = cls(**d)
+        for addr, value in parsedicts_addr(d, inclusive=True):
+            if len(addr) == 0:
+                continue
+            if 'hooke' in value:
+                subcls = cls.__layerclass__
+            else: 
+                continue
+            value['key'] = addr[-1]
+            res[addr] = subcls(**value)
+        return res

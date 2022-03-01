@@ -10,13 +10,14 @@ from .postproc import postproc
 from .proc import linsolve
 
 
-class NavierPlate:
+class RectangularPlate:
 
     def __init__(self, size: tuple, shape: tuple, *args,
                  D: np.ndarray = None, S: np.ndarray=None,
                  Winkler=None, Pasternak=None, loads=None,
                  Hetenyi=None, model='mindlin', mesh=None, 
-                 Bernoulli: bool=None, **kwargs):
+                 Bernoulli: bool=None, Navier=True, **kwargs):
+        assert Navier is True, "Only Navier boundary conditions are covered at the moment."
         self.size = np.array(size, dtype=float)
         self.shape = np.array(shape, dtype=int)
         self.D = D

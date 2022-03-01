@@ -23,7 +23,7 @@ class Q9M(Quadrilateral, Membrane, FiniteElement):
 
 class Q9P(Quadrilateral, Plate, FiniteElement):
 
-    qrule = 'selective'
+    qrule = 'full'
     quadrature = {
         'full': Gauss(3, 3),
         'selective': {

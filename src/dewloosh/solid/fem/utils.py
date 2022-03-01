@@ -63,8 +63,8 @@ def nodes2d_to_dofs1d(inds: np.ndarray, values: np.ndarray):
     inds : np.ndarray
         1d numpy array of integers, listing global node indices.
 
-    values : int
-        2d numpy array of floats, listing values for each node
+    values : int of shape (nN, nDOF, nRHS)
+        3d numpy array of floats, listing values for each node
         in 'inds'.
 
     Returns
@@ -72,18 +72,19 @@ def nodes2d_to_dofs1d(inds: np.ndarray, values: np.ndarray):
     dofinds : np.ndarray
         1d numpy array of integers, denoting global dof indices.
 
-    dofvals : np.ndarray
-        1d numpy array of floats, denoting values on dofs in 'dofinds'.
+    dofvals : np.ndarray of shape (nN * nDOF, nRHS)
+        2d numpy array of floats, denoting values on dofs in 'dofinds'.
 
     """
-    nN, dof_per_node = values.shape
+    nN, dof_per_node, nRHS = values.shape
     dofinds = np.zeros((nN * dof_per_node), dtype=inds.dtype)
-    dofvals = np.zeros(dofinds.shape, dtype=values.dtype)
+    dofvals = np.zeros((nN * dof_per_node, nRHS), dtype=values.dtype)
     for node in prange(nN):
         for dof in prange(dof_per_node):
             i = node * dof_per_node + dof
             dofinds[i] = inds[node] * dof_per_node + dof
-            dofvals[i] = values[node, dof]
+            for rhs in prange(nRHS):
+                dofvals[i, rhs] = values[node, dof, rhs]
     return dofinds, dofvals
 
 
@@ -225,6 +226,46 @@ def topo_to_gnum(topo: np.ndarray, ndofn: int):
     return gnum
 
 
+@njit(nogil=True, parallel=True, fastmath=True, cache=__cache)
+def assemble_load_vector(values: ndarray, gnum: ndarray, N: int = -1):
+    """
+    Returns global dof numbering based on element 
+    topology data.
+
+    Parameters
+    ----------
+    values : np.ndarray of shape (nE, nEVAB, nRHS)
+        3d numpy array of floats, representing element data.
+        The length of the second axis matches the the number of
+        degrees of freedom per cell.
+
+    gnum : int
+        Global indices of local degrees of freedoms of elements.
+
+    N : int, Optional.
+        The number of total unknowns in the system. Must be specified correcly,
+        to get a vector the same size of the global system. If not specified, it is
+        inherited from 'gnum' (as 'gnum.max() + 1'), but this can lead to a chopped 
+        array.
+
+    Returns
+    -------
+    np.ndarray
+        2d numpy array of integers with a shape of (N, nRHS), where nRHS is the number
+        if right hand sizes (load cases).
+
+    """
+    nE, nEVAB, nRHS = values.shape 
+    if N < 0:
+        N = gnum.max() + 1
+    res = np.zeros((N, nRHS), dtype=values.dtype)
+    for i in range(nE):
+        for j in range(nEVAB):
+            for k in prange(nRHS):
+                res[gnum[i, j], k] += values[i, j, k]
+    return res
+
+
 @njit(nogil=True, parallel=False, fastmath=True, cache=__cache)
 def penalty_factor_matrix(cellfixity: ndarray, shp: ndarray):
     nE, nNE, nDOF = cellfixity.shape
@@ -243,7 +284,7 @@ def penalty_factor_matrix(cellfixity: ndarray, shp: ndarray):
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def approximation_matrix(ndf: ndarray, NDOFN : int):
+def approximation_matrix(ndf: ndarray, NDOFN: int):
     """Returns a matrix of approximation coefficients 
     for all elements."""
     nE, nNE = ndf.shape[:2]
@@ -316,7 +357,7 @@ def compatibility_factors_to_coo(ncf: dict, nreg: dict):
     cols = np.zeros(N, dtype=np.int32)
     c = 0
     for iN in range(nN):
-        data[c : c + shapes[iN]] = flatten2dC(ncf[iN])
+        data[c: c + shapes[iN]] = flatten2dC(ncf[iN])
         nNN = widths[iN]
         for jNN in prange(nNN):
             for kNN in prange(nNN):
@@ -327,7 +368,7 @@ def compatibility_factors_to_coo(ncf: dict, nreg: dict):
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def topo1d_to_gnum1d(topo1d : ndarray, NDOFN : int):
+def topo1d_to_gnum1d(topo1d: ndarray, NDOFN: int):
     nN = topo1d.shape[0]
     gnum1d = np.zeros(nN * NDOFN, dtype=topo1d.dtype)
     for i in prange(nN):
@@ -337,7 +378,7 @@ def topo1d_to_gnum1d(topo1d : ndarray, NDOFN : int):
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def ncf_to_cf(ncf : ndarray, NDOFN : int):
+def ncf_to_cf(ncf: ndarray, NDOFN: int):
     nN = ncf.shape[0]
     cf = np.zeros((nN * NDOFN, nN * NDOFN), dtype=ncf.dtype)
     for i in prange(nN):
@@ -348,7 +389,7 @@ def ncf_to_cf(ncf : ndarray, NDOFN : int):
 
 
 @njit(nogil=True, cache=__cache)
-def compatibility_factors(ncf: dict, nreg: dict, NDOFN : int):
+def compatibility_factors(ncf: dict, nreg: dict, NDOFN: int):
     """ncf : nodal_compatibility_factors"""
     nN = len(ncf)
     widths = np.zeros(nN, dtype=np.int32)
@@ -363,19 +404,63 @@ def compatibility_factors(ncf: dict, nreg: dict, NDOFN : int):
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def element_transformation_matrices_bulk(Q: ndarray, nNE: int=2):
+def element_transformation_matrices_bulk(Q: ndarray, nNE: int = 2):
     nE = Q.shape[0]
     nEVAB = nNE * 6
     res = np.zeros((nE, nEVAB, nEVAB), dtype=Q.dtype)
     for iE in prange(nE):
         for j in prange(2*nNE):
-            res[iE, 3*j : 3*(j+1), 3*j : 3*(j+1)] = Q[iE]
+            res[iE, 3*j: 3*(j+1), 3*j: 3*(j+1)] = Q[iE]
     return res
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def transform_element_stiffness_matrices(K: ndarray, frames: ndarray):
+def tr_cells_2d_out(K: ndarray, Q: ndarray):
+    """
+    Transforms element coefficient matrices (like the stiffness matrix) 
+    from local to global.
+    """
     res = np.zeros_like(K)
     for iE in prange(res.shape[0]):
-        res[iE] = frames[iE].T @ K[iE] @ frames[iE]
+        res[iE] = Q[iE].T @ K[iE] @ Q[iE]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def tr_cells_1d_out(A: ndarray, Q: ndarray):
+    """
+    Transforms element vectors (like the load vector) from local to global.
+    (nE, nNE * nDOF)
+    """
+    res = np.zeros_like(A)
+    for iE in prange(res.shape[0]):
+        res[iE] = Q[iE].T @ A[iE]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def tr_cells_1d_in_multi(A: ndarray, Q: ndarray):
+    """
+    Transforms element vectors (like the load vector) from local to global
+    for multiple cases.
+    (nE, nRHS, nNE * nDOF)
+    """
+    res = np.zeros_like(A)
+    for iE in prange(res.shape[0]):
+        for jRHS in prange(res.shape[1]):
+            res[iE, jRHS] = Q[iE] @ A[iE, jRHS]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def tr_cells_1d_out_multi(A: ndarray, Q: ndarray):
+    """
+    Transforms element vectors (like the load vector) from local to global
+    for multiple cases.
+    (nE, nRHS, nNE * nDOF)
+    """
+    res = np.zeros_like(A)
+    for iE in prange(res.shape[0]):
+        for jRHS in prange(res.shape[1]):
+            res[iE, jRHS] = Q[iE].T @ A[iE, jRHS]
     return res

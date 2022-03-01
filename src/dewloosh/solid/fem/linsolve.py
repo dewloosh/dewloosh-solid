@@ -14,8 +14,15 @@ from dewloosh.math.array import matrixform
 
 from .imap import index_mappers, box_spmatrix, box_rhs, unbox_lhs, box_dof_numbering
 from .utils import weighted_stiffness_bulk, irows_icols_bulk
-from .preproc import fem_penalty_matrix_coo
+from .preproc import fem_coeff_matrix_coo
+from .utils import irows_icols_bulk
 
+from ..config import __haspardiso__
+
+if __haspardiso__:
+    import pypardiso as ppd
+    from pypardiso import PyPardisoSolver
+    #from pypardiso.scipy_aliases import pypardiso_solver
 
 arraylike = Union[ndarray, spmatrix]
 
@@ -155,7 +162,8 @@ def linsolve_sparse(K_coo: coo, Kp_coo: coo,
 
 def linsolve_bulk(K_bulk: np.ndarray, Kp_coo: coo, f: np.ndarray,
                   gnum: np.ndarray, *args, **kwargs):
-    K_coo = fem_penalty_matrix_coo(K_bulk, gnum=gnum, N=f.shape[0])
+    rows, cols = irows_icols_bulk(gnum)
+    K_coo = fem_coeff_matrix_coo(K_bulk, gnum=gnum, N=f.shape[0])
     return linsolve_sparse(K_coo, Kp_coo, f, *args, **kwargs)
 
 

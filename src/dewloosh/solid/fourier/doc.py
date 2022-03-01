@@ -1,57 +1,42 @@
 # -*- coding: utf-8 -*-
-if __name__ == '__main__':
+
+from ..config import __hassympy__, __haspylatex__
+
+if __hassympy__ and __haspylatex__:
     import sympy as sy
     from sympy import symbols, Function, diff, Matrix, MatMul, \
         integrate, Symbol, sin, cos, pi, simplify
     import pylatex as pltx
-    from pylatex import Section, Subsection, Command, NoEscape, Package, NewPage
-    from dewloosh.solid.navier.latex import expr_to_ltx, expr_to_ltx_breqn
-    from dewloosh.solid.navier.symtools import inv_sym_3x3
+    from pylatex import Section, Subsection, Command, NoEscape, NewPage
 
-    geometry_options = {
-        "tmargin" : "1.5cm",
-        "lmargin" : "1.5cm",
-        "rmargin" : "1.5cm"
-    }
-    doc = pltx.Document(geometry_options=geometry_options)
+from dewloosh.solid.fourier.latex import expr_to_ltx, expr_to_ltx_breqn, append_preamble
+from dewloosh.solid.fourier.symtools import inv_sym_3x3
 
-    r"""
-    Tools related to displaying math. It's a bit like the numpy of latex, must
-    have stuff.
-    """
-    doc.packages.append(Package('amsmath'))
 
-    r"""
-    Sympy uses the 'operatorname' command frequently to print symbols.
-    """
-    doc.packages.append(Package('amsopn'))
+def append_mindlin_theory(doc, *args, glossary:dict=None, signs:dict=None, **kwargs):
+    
+    if glossary is None:
+        glossary = {
+            'UX' : 'u_0',
+            'UY' : 'v_0',
+            'UZ' : 'w_0',
+            'ROTX' : '\\theta_y',
+            'ROTY' : '\\theta_x',
+            'ROTZ' : '\\theta_z',
+        }
+        
+    if signs is None:
+        glossary = {
+            'UX' : 1,
+            'UY' : 1,
+            'UZ' : 1,
+            'ROTX' : 1,
+            'ROTY' : 1,
+            'ROTZ' : 1,
+        }
 
-    r"""
-    To automatically break long equations into multiple lines.
-    """
-    doc.packages.append(Package('breqn'))
-
-    r"""
-    mathtools provides us with the \coloneqq command, for defining equality
-    symbol ':='
-    """
-    doc.packages.append(Package('mathtools'))
-
-    r"""
-    Misc
-    """
-    doc.packages.append(Package('enumitem'))  # to customize enumerations
-    doc.packages.append(Package('xcolor'))  # colors
-    doc.packages.append(Package('lmodern'))  # high quality fonts
-
-    title = "Calculation of rectangular, simply supported plates \
-        resting on elastic foundation."
-    doc.preamble.append(Command('title', title))
-    doc.preamble.append(Command('author', 'Claude Louis Marie Henri Navier'))
-    doc.preamble.append(Command('date', NoEscape(r'\today')))
-    doc.append(NoEscape(r'\maketitle'))
-    doc.append(NoEscape(r'\tableofcontents'))
-    doc.append(NewPage())
+    __hasreqs__ = __hassympy__ and __haspylatex__
+    assert __hasreqs__, "You must have `sympy` and `pylatex` for this."
 
     with doc.create(Section('Theoretical background')):
 
@@ -59,13 +44,12 @@ if __name__ == '__main__':
         x, y, z = symbols('x y z', real=True)
 
         # kinematic variables
-        w0 = Function('w_0')(x, y)
-        thx = Function('\\theta_x')(x, y)
-        thy = Function('\\theta_y')(x, y)
+        UZ = Function(glossary['UZ'])(x, y)
+        ROTX = Function(glossary['ROTY'])(x, y)
+        ROTY = Function(glossary['ROTX'])(x, y)
 
         # sign modifiers for kinematic variables
-        beta_w, beta_u, beta_v, = \
-            symbols('\\beta_w, \\beta_u, \\beta_v', real = True)
+        sign_w, sign_u, sign_v, = symbols('\\beta_w, \\beta_u, \\beta_v', real=True)
 
         # displacement field
         with doc.create(Subsection('Displacement Field and Boundary Conditions')):
@@ -90,9 +74,9 @@ if __name__ == '__main__':
             v = -z * beta_v * thy
             w = beta_w * w0
             """
-            u = -z * thx
-            v = -z * thy
-            w = w0
+            u = -z * ROTX
+            v = -z * ROTY
+            w = UZ
             doc.append(expr_to_ltx(r'u(x, y, z)', sy.latex(u)))
             doc.append(expr_to_ltx(r'v(x, y, z)', sy.latex(v)))
             doc.append(expr_to_ltx(r'w(x, y, z)', sy.latex(w)))
@@ -128,21 +112,22 @@ if __name__ == '__main__':
         with doc.create(Subsection('Stress Resultants')):
             # strains '+' Hooke model -> stresses
             C11, C22, C12, C16, C26, C66 = C126ij = \
-                symbols('C_11 C_22 C_12 C_16 C_26 C_66', real = True)
+                symbols('C_11 C_22 C_12 C_16 C_26 C_66', real=True)
             C126 = sy.Matrix([[C11, C12, 0], [C12, C22, 0], [0, 0, C66]])
             sxx, syy, sxy = MatMul(C126, sy.Matrix([exx, eyy, exy])).doit()
-            C44, C55 = C45ij = symbols('C_44 C_55', real = True)
+            C44, C55 = C45ij = symbols('C_44 C_55', real=True)
             C45 = sy.Matrix([[C44, 0], [0, C55]])
             syz, sxz = MatMul(C45, sy.Matrix([eyz, exz])).doit()
 
             # integrate through the thickness
-            h = Symbol('h', real = True)  # thickness
-            Int = lambda expr : integrate(expr, (z, -h/2, h/2))
+            h = Symbol('h', real=True)  # thickness
+            def Int(expr): return integrate(expr, (z, -h/2, h/2))
             mx, my, mxy = M = Matrix([Int(s * z) for s in [sxx, syy, sxy]])
             vx, vy = V = Matrix([Int(s) for s in [sxz, syz]])
 
-            D11, D22, D12, D66 = Dij = symbols('D_11 D_22 D_12 D_66', real = True)
-            S44, S55, = Sij = symbols('S_44 S_55', real = True)
+            D11, D22, D12, D66 = Dij = symbols(
+                'D_11 D_22 D_12 D_66', real=True)
+            S44, S55, = Sij = symbols('S_44 S_55', real=True)
             #
             mx = mx.simplify().expand()
             cD11 = mx.coeff(C11 * h**3 / 12)
@@ -209,9 +194,9 @@ if __name__ == '__main__':
 
         # Boundary Conditions and Trial Solution
         with doc.create(Subsection('Boundary Conditions and Trial Solution')):
-            mn = m, n = symbols('m n', integer = True, positive = True)
-            coeffs = Amn, Bmn, Cmn = symbols('A_{mn} B_{mn} C_{mn}', real = True)
-            shape = Lx, Ly = symbols('L_x, L_y', real = True)
+            mn = m, n = symbols('m n', integer=True, positive=True)
+            coeffs = Amn, Bmn, Cmn = symbols('A_{mn} B_{mn} C_{mn}', real=True)
+            shape = Lx, Ly = symbols('L_x, L_y', real=True)
             Sm, Sn = sin(m * pi * x / Lx), sin(n * pi * y / Ly)
             Cm, Cn = cos(m * pi * x / Lx), cos(n * pi * y / Ly)
             w0_trial = Cmn * Sm * Sn
@@ -225,12 +210,14 @@ if __name__ == '__main__':
                 form
                 """))
             sumltx = r'\sum_{m, n} '
-            doc.append(expr_to_ltx(sy.latex(w0), sumltx + sy.latex(w0_trial)))
-            doc.append(expr_to_ltx(sy.latex(thx), sumltx + sy.latex(thx_trial)))
-            doc.append(expr_to_ltx(sy.latex(thy), sumltx + sy.latex(thy_trial)))
+            doc.append(expr_to_ltx(sy.latex(UZ), sumltx + sy.latex(w0_trial)))
+            doc.append(expr_to_ltx(sy.latex(ROTX),
+                       sumltx + sy.latex(thx_trial)))
+            doc.append(expr_to_ltx(sy.latex(ROTY),
+                       sumltx + sy.latex(thy_trial)))
 
             # substitute trial solution
-            trial = {w0 : w0_trial, thx : thx_trial, thy: thy_trial}
+            trial = {UZ: w0_trial, ROTX: thx_trial, ROTY: thy_trial}
             eq_mx_trial = lhs_mx.subs(trial).expand().doit() / (Sm * Cn)
             eq_mx_trial = eq_mx_trial.simplify().expand()
             eq_my_trial = lhs_my.subs(trial).expand().doit() / (Cm * Sn)
@@ -262,8 +249,8 @@ if __name__ == '__main__':
             P[0, :] = Matrix([eq_mx_trial.coeff(c) for c in coeffs]).T
             P[1, :] = Matrix([eq_my_trial.coeff(c) for c in coeffs]).T
             P[2, :] = Matrix([eq_fz_trial.coeff(c) for c in coeffs]).T
-            doc.append(expr_to_ltx(r'\boldsymbol{P}', sy.latex(P), dfrac = True))
-            detP, adjP = inv_sym_3x3(P, as_adj_det = True)
+            doc.append(expr_to_ltx(r'\boldsymbol{P}', sy.latex(P), dfrac=True))
+            detP, adjP = inv_sym_3x3(P, as_adj_det=True)
             detP = detP.simplify().expand()
             adjP.simplify()
 
@@ -311,10 +298,10 @@ if __name__ == '__main__':
                 """))
 
             # constans vertical load over a rectangular area
-            q, w, h = symbols('q w h', real = True)
-            xc, yc = symbols('x_c y_c', real = True)
+            q, w, h = symbols('q w h', real=True)
+            xc, yc = symbols('x_c y_c', real=True)
             qmn = (4/(Lx*Ly)) * integrate(q * Sm * Sn, (x, xc - w/2, xc + w/2),
-                                        (y, yc - h/2, yc + h/2))
+                                          (y, yc - h/2, yc + h/2))
             qmn = qmn.simplify().expand()
             doc.append(NoEscape(
                 r"""
@@ -322,8 +309,8 @@ if __name__ == '__main__':
                 \paragraph{Constans vertical load of intensity $q$ over a
                 rectangular area}
                 """))
-            doc.append(expr_to_ltx(r'q_{mn}', sy.latex(qmn), post = ','))
-            #doc.append(NoEscape(r"\noindent"))
+            doc.append(expr_to_ltx(r'q_{mn}', sy.latex(qmn), post=','))
+            # doc.append(NoEscape(r"\noindent"))
             doc.append(NoEscape(
                 r"""
                 where $w$ and $h$ denote the width and height, $x_c$ and $y_c$ the
@@ -332,10 +319,10 @@ if __name__ == '__main__':
 
             # constans moment of intensity mx, around global axis X,
             # over a rectangular area with width w, height h and center (xc, yc)
-            m_x, w, h = symbols('m_x w h', real = True)
-            xc, yc = symbols('x_c y_c', real = True)
+            m_x, w, h = symbols('m_x w h', real=True)
+            xc, yc = symbols('x_c y_c', real=True)
             qmn = (4/(Lx*Ly)) * integrate(m_x * Sm * Cn, (x, xc - w/2, xc + w/2),
-                                        (y, yc - h/2, yc + h/2))
+                                          (y, yc - h/2, yc + h/2))
             qmn = qmn.simplify().expand()
             doc.append(NoEscape(
                 r"""
@@ -343,8 +330,8 @@ if __name__ == '__main__':
                 \paragraph{Constans moment around global axis $x$ of intensity
                 $m_x$ over a rectangular area}
                 """))
-            doc.append(expr_to_ltx(r'q_{mn}', sy.latex(qmn), post = ','))
-            #doc.append(NoEscape(r"\noindent"))
+            doc.append(expr_to_ltx(r'q_{mn}', sy.latex(qmn), post=','))
+            # doc.append(NoEscape(r"\noindent"))
             doc.append(NoEscape(
                 r"""
                 where $w$ and $h$ denote the width and height, $x_c$ and $y_c$ the
@@ -353,10 +340,10 @@ if __name__ == '__main__':
 
             # constant moment of intensity my, around global axis Y,
             # over a rectangular area with width w, height h and center (xc, yc)
-            m_y, w, h = symbols('m_y w h', real = True)
-            xc, yc = symbols('x_c y_c', real = True)
+            m_y, w, h = symbols('m_y w h', real=True)
+            xc, yc = symbols('x_c y_c', real=True)
             qmn = (4/(Lx*Ly)) * integrate(m_y * Cm * Sn, (x, xc - w/2, xc + w/2),
-                                        (y, yc - h/2, yc + h/2))
+                                          (y, yc - h/2, yc + h/2))
             qmn = qmn.simplify().expand()
             doc.append(NoEscape(
                 r"""
@@ -364,12 +351,40 @@ if __name__ == '__main__':
                 \paragraph{Constans moment around global axis $y$ of intensity
                 $m_y$ over a rectangular area}
                 """))
-            doc.append(expr_to_ltx(r'q_{mn}', sy.latex(qmn), post = ','))
-            #doc.append(NoEscape(r"\noindent"))
+            doc.append(expr_to_ltx(r'q_{mn}', sy.latex(qmn), post=','))
+            # doc.append(NoEscape(r"\noindent"))
             doc.append(NoEscape(
                 r"""
                 where $w$ and $h$ denote the width and height, $x_c$ and $y_c$ the
                 coordinates of the center of the rectangle.
                 """))
+            
+            return doc
 
-    doc.generate_pdf('f:\\navier', clean_tex=False, compiler='pdfLaTeX')
+    
+if __name__ == '__main__':
+    assert __hassympy__ and __haspylatex__
+    from dewloosh.solid.fourier.latex import  append_preamble
+
+    geometry_options = {
+        "tmargin": "1.5cm",
+        "lmargin": "1.5cm",
+        "rmargin": "1.5cm"
+    }
+    
+    doc = pltx.Document(geometry_options=geometry_options)
+
+    doc = append_preamble(doc)
+
+    title = "Calculation of rectangular, simply supported plates \
+        resting on elastic foundation."
+    doc.preamble.append(Command('title', title))
+    doc.preamble.append(Command('author', 'Claude Louis Marie Henri Navier'))
+    doc.preamble.append(Command('date', NoEscape(r'\today')))
+    doc.append(NoEscape(r'\maketitle'))
+    doc.append(NoEscape(r'\tableofcontents'))
+    doc.append(NewPage())
+    
+    doc = append_mindlin_theory(doc)
+    
+    doc.generate_pdf('f:\\navier2', clean_tex=False, compiler='pdfLaTeX')

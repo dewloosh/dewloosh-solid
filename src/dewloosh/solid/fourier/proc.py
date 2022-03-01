@@ -5,7 +5,6 @@ from numba import njit, prange
 
 from dewloosh.core import squeeze
 
-from dewloosh.math.linalg.linalg import inv3x3
 from dewloosh.math.linalg._solve import npsolve
 
 

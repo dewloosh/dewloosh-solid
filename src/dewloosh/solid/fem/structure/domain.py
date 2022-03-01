@@ -7,3 +7,9 @@ class Domain2d(Structure):
 
     def __init__(self, *args, mesh: FemMesh2d = None, **kwargs):
         super().__init__(wrap=mesh)
+        
+
+class RectangularPlate(Domain2d):
+    
+    def __init__(self, *args, mesh: FemMesh2d = None, **kwargs):
+        super().__init__(wrap=mesh)

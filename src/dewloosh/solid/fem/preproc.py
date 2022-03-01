@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
 from scipy.sparse import coo_matrix
 import numpy as np
+from numpy import ndarray
+
+from dewloosh.core import squeeze
 
 from dewloosh.math.array import isintegerarray, isfloatarray, \
-    is1dintarray, is1dfloatarray, isboolarray, bool_to_float
+    isboolarray, bool_to_float, atleastnd
 from dewloosh.math.linalg.sparse.utils import lower_spdata, upper_spdata
 
 from .utils import nodes2d_to_dofs1d, irows_icols_bulk
 
 
-def fem_coeff_matrix_coo(A: np.ndarray, *args,
-                         inds: np.ndarray = None,
-                         rows: np.ndarray = None,
-                         cols: np.ndarray = None,
+def fem_coeff_matrix_coo(A: ndarray, *args, inds: ndarray = None,
+                         rows: ndarray = None, cols: ndarray = None,
                          N: int = None, **kwargs):
     """
     Returns the coefficient matrix in sparse 'coo' format.
@@ -66,78 +67,79 @@ def fem_coeff_matrix_coo(A: np.ndarray, *args,
     return coo_matrix((data, (rows, cols)), shape=(N, N))
 
 
-def fem_nbc_data(*args, inds: np.ndarray = None, vals: np.ndarray = None,
-                 N: int = None, **kwargs):
+def build_fem_nodal_data(*args, inds: ndarray = None, values: ndarray = None,
+                         N: int = None, **kwargs):
     """
-    Returns the data necessary to create a load vector
-    representing natural boundary conditions.
+    Returns nodal data of any sort in standard form.
+
+    The data is given with 'values' and applies to the node indices specified
+    by 'inds'. At all times, the function must be informed about the total number of 
+    nodes in the model, to return an output with a correct shape. If 'inds' is None, it 
+    is assumed that 'values' contains data for each node in the model, and therefore
+    the length of 'values' is the number of nodes in the model. Otherwise, the number of nodes
+    is inferred from 'inds' and 'N' (see the doc). 
 
     Parameters
     ----------
 
     inds : np.ndarray(int), optional
-        1d numpy integer array specifying node or dof indices, based on 
-        the shape of other parameters providing load values (see 'vals'). 
+        1d numpy integer array specifying global indices for the rows of 'values'. 
 
-    vals : np.ndarray([float]), optional
-        1d or 2d numpy array of floats, that specify load values 
-        imposed on dofs specified with 'inds'. If 'inds' is None, we assume
-        that the provided definition covers all dofs in the model.
-        If 1d and indices are specified, we assume that they refer to global dof indices. 
-        If 2d and indices are specified, we assume that they refer to node indices and
-        that every node in the model has the same number of dofs.
+    values : np.ndarray([float]), optional
+        2d or 3d numpy array of floats, that specify some sort of data 
+        imposed on nodes.
+        If 3d, we assume that last axis stands for the number of load cases.
 
     N : int, optional
-        The overall number of dofs in the model. If not provided, we assume that
+        The overall number of nodes in the model. If not provided, we assume that
         it equals the highest index in 'inds' + 1 (this assumes zero-based indexing).
 
     Notes
     -----
-    Call 'fem_load_vector' on the same arguments to get the vector 
-    itself as a numpy array. 
+    The function returns the values as a 2d array, even if the input array was only 
+    2 dimensional, which suggests a single load case. 
 
+    Call 'fem_load_vector' with the same arguments to get the vector itself as a numpy array. 
 
     Returns
     -------
-    (inds, vals, N) or None
-        The load values as floats, their indices and the overall
-        size of the equation system.
+    (indices, nodal_loads, N) or None
+
+        indices : int(:)
+            1d numpy integer array of npde indices
+
+        nodal_loads : float(:, :) 
+            2d numpy float array of shape (nN * nDOF, nRHS)
+
+        N : int
+            The overall size of the equation system, as derived from the input.
 
     """
 
-    if isfloatarray(vals):
-        size = len(vals.shape)
-        if size == 1:
-            # dof based definition
-            if inds is None:
-                N = len(vals)
-                inds = np.arange(N)
-            else:
-                assert isintegerarray(inds)
-                assert len(vals) == len(inds)
-        elif size == 2:
-            # node based definition
-            if inds is None:
-                inds = np.arange(len(vals))  # node indices
-            else:
-                assert isintegerarray(inds)
-                assert len(vals) == len(inds)
-            # transform to nodal defintion
-            inds, vals = nodes2d_to_dofs1d(inds, vals)
+    assert isfloatarray(values)
 
-    if is1dintarray(inds) and is1dfloatarray(vals):
-        N = inds.max() + 1 if N is None else N
-        return inds, vals, N
+    # node based definition with multiple RHS (at least 1)
+    values = atleastnd(values, 3, back=True)  # (nP, nDOF, nRHS)
+    if inds is None:
+        inds = np.arange(len(values))  # node indices
+    else:
+        assert isintegerarray(inds)
+        assert len(values) == len(inds)
+    # transform to nodal defintion
+    inds, values = nodes2d_to_dofs1d(inds, values)
+
+    N = inds.max() + 1 if N is None else N
+    return inds, values, N
 
 
-def fem_load_vector(*args, **kwargs) -> np.ndarray:
+@squeeze(True)
+def fem_load_vector(*args, **kwargs) -> ndarray:
     """
-    Returns the sparse, COO format penalty matrix, equivalent of 
-    a Courant-type penalization of the essential boundary conditions.
+    Assembles the right-hand-side of the global equation system.
 
     Parameters
     ----------
-        See the documentation of 'fem_ebc_data' for the discription
+        See the documentation of 'build_fem_nodal_data' for the discription
         of the possible arguments.
 
     Returns
@@ -145,38 +147,24 @@ def fem_load_vector(*args, **kwargs) -> np.ndarray:
     numpy.ndarray(float)[:]
         The load vector as a numpy array of floats.
     """
-    inds, vals, N = fem_nbc_data(*args, **kwargs)
-    f = np.zeros(N)
-    f[inds] = vals
+    inds, values, N = build_fem_nodal_data(*args, **kwargs)
+    nRHS = values.shape[-1]
+    f = np.zeros((N, nRHS))
+    f[inds] = values
     return f
 
 
-def fem_ebc_data(*args, inds: np.ndarray = None, pen: np.ndarray = None, N: int = None,
-                 pfix: float = 1e12, **kwargs):
+def build_fem_ebc_data(*args, inds: ndarray = None, values: ndarray = None,
+                       pfix: float = 1e12, **kwargs):
     """
-    Returns the data necessary to create a penalty matrix for a Courant-type 
-    penalization of the essential boundary conditions.
+    Returns fixity information in standard form. It extends the behaviour of 
+    'build_fem_nodal_data' by allowing for boolean input.
 
     Parameters
     ----------
+    inds : see 'build_fem_nodal_data'
 
-    inds : np.ndarray(int), optional
-        1d numpy integer array specifying node or dof indices, based on 
-        the shape of other parameters providing penalty values (see 'pen'). 
-        If penalty values are not provided, the specified dofs are penalized
-        with value 'pfix'.
-
-    pen : np.ndarray([float, bool]), optional
-        1d or 2d numpy array of floats or booleans, that specify penalties 
-        imposed on dofs specified with 'inds'. If 'inds' is None, we assume
-        that the provided definition covers all dofs in the model.
-        If 1d and indices are specified, we assume that they refer to global dof indices. 
-        If 2d and indices are specified, we assume that they refer to node indices and
-        that every node in the model has the same number of dofs.
-
-    N : int, optional
-        The overall number of dofs in the model. If not provided, we assume that
-        it equals the highest index in 'inds' + 1 (this assumes zero-based indexing).
+    values : see 'build_fem_nodal_data'
 
     pfix : float, optional
         Penalty value for fixed dofs. It is used to transform boolean penalty
@@ -185,59 +173,43 @@ def fem_ebc_data(*args, inds: np.ndarray = None, pen: np.ndarray = None, N: int 
 
     Notes
     -----
-    Call 'fem_penalty_matrix_coo' on the same arguments to get the penalty 
-    matrix itself. 
+    It is used to create a penalty matrix for a Courant-type penalization of the 
+    essential boundary conditions.
+
+    Call 'fem_penalty_matrix_coo' with the same arguments to get the penalty 
+    matrix itself as a sparse scipy matrix in 'coo' format. 
 
     Returns
     -------
-    (inds, pen, N) or None
-        The penalty values as floats, their indices and the overall
-        size of the equation system.
+    see 'build_fem_nodal_data'
 
     """
+    if values is not None:
+        assert isinstance(values, np.ndarray)
+        values = atleastnd(values, 3, back=True)  # (nP, nDOF, nLHS)
+    else:
+        assert isintegerarray(inds)
+        raise NotImplementedError
 
-    if isinstance(pen, np.ndarray):
-        size = len(pen.shape)
-        if isfloatarray(pen):
-            if size == 1:
-                if inds is None:
-                    N = len(pen)
-                    inds = np.arange(N)
-                else:
-                    assert isintegerarray(inds)
-                    assert len(pen) == len(inds)
-            elif size == 2:
-                if inds is None:
-                    inds = np.arange(len(pen))
-                else:
-                    assert isintegerarray(inds)
-                    assert len(pen) == len(inds)
-                inds, pen = nodes2d_to_dofs1d(inds, pen)
-        elif isboolarray(pen):
-            if size == 1:
-                pass
-            elif size == 2:
-                pen = bool_to_float(pen, pfix)
-                if inds is None:
-                    inds = np.arange(len(pen))
-                else:
-                    assert isintegerarray(inds)
-                    assert len(pen) == len(inds)
-                inds, pen = nodes2d_to_dofs1d(inds, pen)
+    if isfloatarray(values):
+        pass
+    elif isboolarray(values):
+        values = bool_to_float(values, pfix)
+    else:
+        raise NotImplementedError
 
-    if is1dintarray(inds) and is1dfloatarray(pen):
-        N = inds.max() + 1 if N is None else N
-        return inds, pen, N
+    return build_fem_nodal_data(*args, inds=inds, values=values, **kwargs)
 
 
-def fem_penalty_matrix_coo(*args, **kwargs) -> coo_matrix:
+def fem_penalty_matrix_coo(*args, eliminate_zeros=True, sum_duplicates=True, 
+                           **kwargs) -> coo_matrix:
     """
     Returns the sparse, COO format penalty matrix, equivalent of 
     a Courant-type penalization of the essential boundary conditions.
 
     Parameters
     ----------
-        See the documentation of 'fem_ebc_data' for the discription
+        See the documentation of 'build_fem_ebc_data' for the discription
         of the possible arguments.
 
     Returns
@@ -245,17 +217,17 @@ def fem_penalty_matrix_coo(*args, **kwargs) -> coo_matrix:
     scipy.sparse.coo_matrix
         The penalty matrix in sparse COO format.
     """
-    inds, pen, N = fem_ebc_data(*args, **kwargs)
-    K = coo_matrix((pen, (inds, inds)), shape=(N, N))
-    K.eliminate_zeros()
+    inds, pen, N = build_fem_ebc_data(*args, **kwargs)
+    K = coo_matrix((pen[:, 0], (inds, inds)), shape=(N, N))
+    if eliminate_zeros:
+        K.eliminate_zeros()
+    if sum_duplicates:
+        K.sum_duplicates()
     return K
-
-
-
 
 
 if __name__ == '__main__':
     inds = np.array([2, 4, 12])
     pen = np.array([1e5, 1e5, 1e12])
     N = 100
-    args = fem_ebc_data(inds=inds, pen=pen, N=N)
+    args = build_fem_ebc_data(inds=inds, values=pen, N=N)
