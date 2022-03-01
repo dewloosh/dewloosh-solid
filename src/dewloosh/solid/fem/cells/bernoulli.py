@@ -21,6 +21,7 @@ __all__ = ['Bernoulli']
 
 __cache = True
 
+
 ArrayOrFloat = Union[ndarray, float]
 
 
@@ -35,15 +36,15 @@ def shape_function_values(x, x1, x2):
         (x - x2)/(x1 - x2),
         (-x + x1)/(x1 - x2),
         # for v_s and theta_z
-        (x - x2)**2*(-2*x + 3*x1 - x2)/(x1 - x2)**3,
-        (x - x1)*(x - x2)**2/(x1 - x2)**2,
-        (x - x1)**2*(2*x + x1 - 3*x2)/(x1 - x2)**3,
-        (x - x1)**2*(x - x2)/(x1 - x2)**2,
+        (x - x2)**2 * (-2*x + 3*x1 - x2) / (x1 - x2)**3,
+        (x - x1) * (x - x2)**2/(x1 - x2)**2,
+        (x - x1)**2 * (2*x + x1 - 3*x2) / (x1 - x2)**3,
+        (x - x1)**2 * (x - x2)/(x1 - x2)**2,
         # for w_s and theta_y
-        (x - x2)**2*(-2*x + 3*x1 - x2)/(x1 - x2)**3,
-        (-x + x1)*(x - x2)**2/(x1 - x2)**2,
-        (x - x1)**2*(2*x + x1 - 3*x2)/(x1 - x2)**3,
-        (-x + x2)*(x - x1)**2/(x1 - x2)**2
+        (x - x2)**2*(-2*x + 3*x1 - x2) / (x1 - x2)**3,
+        (-x + x1) * (x - x2)**2 / (x1 - x2)**2,
+        (x - x1)**2 * (2*x + x1 - 3*x2) / (x1 - x2)**3,
+        (-x + x2) * (x - x1)**2 / (x1 - x2)**2
     ])
 
 
@@ -323,8 +324,6 @@ def calculate_element_forces_bulk(dofsol: ndarray, B: ndarray,
 
 
 njit(nogil=True, parallel=True, cache=__cache)
-
-
 def interpolate_element_forces_bulk(edata: ndarray, pcoords: ndarray):
     """
     Approximates internal forces in several elements at several points, 
