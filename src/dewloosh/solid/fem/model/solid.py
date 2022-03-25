@@ -19,8 +19,8 @@ class Solid:
     def thickness(self, *args, **kwargs):
         raise NotImplementedError
 
-    def model_stiffness_matrix(self, *args, **kwargs):
-        return self.material_stiffness_matrix()
+    def model_stiffness_matrices(self, *args, **kwargs):
+        return self.material_stiffness_matrices()
 
     def jacobian_matrix(self, *args, **kwargs):
         raise NotImplementedError

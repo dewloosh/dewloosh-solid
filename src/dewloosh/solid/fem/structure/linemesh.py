@@ -1,22 +1,44 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+from numba import njit, prange
+import numpy as np
+from numpy import ndarray, swapaxes as swap, ascontiguousarray as ascont
+from scipy.interpolate import interp1d
+
+from dewloosh.math.utils import to_range
+
+from dewloosh.geom.config import __haspyvista__, __hasplotly__, __hasmatplotlib__
 
 from ..mesh import FemMesh
 
+from .tr import \
+    transform_numint_forces_out as tr_cell_gauss_out, \
+    transform_numint_forces_in as tr_cell_gauss_in
+
+
+__cache = True
+
+
+if __haspyvista__:
+    import pyvista as pv
+
 
 class LineMesh(FemMesh):
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
     def plot(self, *args, as_tubes=True, radius=0.1, **kwargs):
         if not as_tubes:
             return super().plot(*args, **kwargs)
         else:
             self.to_pv(as_tubes=True, radius=radius).plot(smooth_shading=True)
-            
+
     def to_pv(self, *args, as_tubes=True, radius=0.1, **kwargs):
-        import pyvista as pv
+        """
+        Returns the mesh as a `pyvista` object.
+        """
+        assert __haspyvista__
         if not as_tubes:
             return super().to_pv(*args, **kwargs)
         else:
@@ -27,121 +49,143 @@ class LineMesh(FemMesh):
             lines[:, 1:] = topo
             poly.lines = lines
             return poly.tube(radius=radius)
-            
-              
-if __name__ == '__main__':
-    from dewloosh.solid.fem.structure.structure import Structure
-    from dewloosh.math.linalg import linspace, Vector
-    from dewloosh.solid.fem.cells import B2
-    from dewloosh.geom.space import StandardFrame, \
-        PointCloud, frames_of_lines
-    from dewloosh.math.array import repeat
-    import numpy as np
-    from numpy import pi as PI
-    
-    # geometry
-    L = 3000.  #length
-    R = 25.0  # radius
-    
-    # material
-    E = 210000.0
-    nu = 0.3 
-    
-    # mesh
-    nElem = 30  # number of finite elements
-    
-    # load
-    F = -1000.  # vertical load at the end
-    
-    # cross section
-    A = PI * R**2
-    Ix = PI * R**4 / 2
-    Iy = PI* R**4 / 4
-    Iz = PI * R**4 / 4
 
-    # model stiffness matrix
-    G = E / (2 * (1 + nu))
-    Hooke = np.array([
-        [E*A, 0, 0, 0],
-        [0, G*Ix, 0, 0],
-        [0, 0, E*Iy, 0],
-        [0, 0, 0, E*Iz]
-        ])
+    def to_plotly(self):
+        assert __hasplotly__
+        raise NotImplementedError
+
+    def to_mpl(self):
+        """
+        Returns the mesh as a `matplotlib` figure.
+        """
+        assert __hasmatplotlib__
+        raise NotImplementedError
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def nodal_distribution_factors(topo: ndarray, volumes: ndarray):
+    """
+    Determines the share of an element of a value at its nodes.
+
+    The j-th factor of the i-th row is the contribution of
+    element i to the j-th node. Assumes a regular topology.
+    """
+    factors = np.zeros(topo.shape, dtype=volumes.dtype)
+    nodal_volumes = np.zeros(topo.max() + 1, dtype=volumes.dtype)
+    for iE in range(topo.shape[0]):
+        nodal_volumes[topo[iE]] += volumes[iE]
+    for iE in prange(topo.shape[0]):
+        for jNE in prange(topo.shape[1]):
+            factors[iE, jNE] = volumes[iE] / nodal_volumes[topo[iE, jNE]]
+    return factors
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def _distribute_nodal_data_ndf_(data: ndarray, topo: ndarray, ndf: ndarray):
+    """
+    data (N, nRHS, nDOF)
+    topo (nE, nNE)
+    ---
+    (nE, nNE, nRHS, nDOF)
+    """
+    _, nRHS, nDOF = data.shape
+    nE, nNE = topo.shape
+    res = np.zeros((nE, nNE, nRHS, nDOF))
+    for i in prange(nE):
+        for j in prange(nNE):
+            for k in prange(nRHS):
+                res[i, j, k] = data[topo[i, j], k] * ndf[i, j]
+    return res
+
+
+def distribute_nodal_data(data: ndarray, topo: ndarray, ndf: ndarray = None):
+    ndf = np.ones_like(topo) if ndf is None else ndf
+    return _distribute_nodal_data_ndf_(data, topo, ndf)
+
+
+@njit(nogil=True, parallel=False, fastmath=True, cache=__cache)
+def _collect_nodal_data_ndf_(data: ndarray, topo: ndarray, ndf: ndarray, N: int):
+    """
+    data (nE, nNE, nRHS, nDOFN)
+    topo (nE, nNE)
+    ---
+    (N, nRHS, nDOFN)
+    """
+    nE, nNE, nRHS, nDOFN = data.shape
+    res = np.zeros((N, nRHS, nDOFN), dtype=data.dtype)
+    for i in prange(nE):
+        for j in prange(nNE):
+            for k in prange(nRHS):
+                res[topo[i, j], k] += data[i, j, k] * ndf[i, j]
+    return res
+
+
+def collect_nodal_data(data: ndarray, topo: ndarray, *args,
+                       ndf: ndarray = None, N: int = None, **kwargs):
+    N = topo.max() + 1 if N is None else N
+    ndf = np.ones_like(topo) if ndf is None else ndf
+    return _collect_nodal_data_ndf_(data, topo, ndf, N)
+
+
+def extrapolate_gauss_data(gpos: ndarray, gdata: ndarray):
+    gdata = swap(gdata, 0, 2)  # (nDOFN, nE, nP) --> (nP, nE, nDOFN)
+    approx = interp1d(gpos, gdata, fill_value='extrapolate', axis=0)
+
+    def inner(*args, **kwargs):
+        res = approx(*args, **kwargs)
+        return swap(res, 0, 2)  # (nP, nE, nDOFN) --> (nDOFN, nE, nP)
+    return inner
+
+
+class BernoulliFrame(LineMesh):
     
-    # space
-    GlobalFrame = StandardFrame(dim=3)
-    angles = [0, 0, 2 * np.random.rand() * PI]
-    #angles = [0., PI/2, 0.]
-    #angles = [0., 0., PI]
-    #angles = [0., 0., 0.]
-    angles = np.random.rand(3) * PI * 2
-    local_frame = GlobalFrame.fork('Body', angles, 'XYZ')
-    
-    # mesh
-    p0 = np.array([0., 0., 0.])
-    p1 = np.array([L, 0., 0.])
-    coords = linspace(p0, p1, nElem+1)
-    coords = PointCloud(coords, frame=local_frame).show()
-    topo = np.zeros((nElem, 2), dtype=int)
-    topo[:, 0] = np.arange(nElem)
-    topo[:, 1] = np.arange(nElem) + 1
-    
-    # support at the leftmost, load at the rightmost node
-    loads = np.zeros((coords.shape[0], 6))
-    fixity = np.zeros((coords.shape[0], 6)).astype(bool)
-    global_load_vector = \
-        Vector([0., 0., F], frame=local_frame).show()
-    loads[-1, :3] = global_load_vector
-    fixity[0, :] = True
-            
-    # set up objects
-    mesh = LineMesh(coords=coords, topo=topo, loads=loads, fixity=fixity, 
-                    celltype=B2, frame=GlobalFrame, model=Hooke)
-    frames = repeat(local_frame.dcm(), nElem)
-    frames = frames_of_lines(coords, topo)
-    mesh.frames = frames
-    structure = Structure(mesh=mesh)
-    
-    # intermediate plots
-    #mesh.plot()
-    #structure.plot(radius=R)
-    
-    # solution
-    structure.linsolve()
-    
-    # postproc
-    # 1) displace the mesh
-    dofsol = structure.nodal_dof_solution()[:, :3]
-    coords_new = coords + dofsol
-    structure.mesh.pointdata['x'] = coords_new
-    local_dof_solution = \
-        Vector(dofsol[-1, :3], frame=GlobalFrame).show(local_frame)
-    sol_fem = local_dof_solution[2]
-    
-    # Bernoulli solution
-    EI = E * Iy
-    sol_exact = F * L**3 / (3 * EI)
-    print("Analytic Bernoulli Solution : {}".format(sol_exact))
-    print("FEM Solution : {}".format(sol_fem))
-    diff = 100 * (sol_fem - sol_exact) / sol_exact
-    print("Difference : {} %".format(diff))
-    
-    # final plot
-    import pyvista as pv
-    p = pv.Plotter(notebook=False)
-    load_size = 50
-    pvobj = mesh.to_pv(as_tubes=False)
-    forces = loads[:, :3]
-    forces /= np.abs(forces).max()
-    forces *= load_size
-    pvobj["loads"] = forces
-    pvobj.set_active_vectors("loads")
-    p.add_mesh(pvobj, show_edges=True, color='black')
-    p.add_mesh(pvobj.arrows, color='red')
-    p.add_mesh(mesh.to_pv(as_tubes=True, radius=R), opacity=0.5)
-    p.add_points(coords_new, render_points_as_spheres=True,
-                 point_size=10.0, color='blue')
-    actor = p.show_bounds(grid='front', location='outer',
-                          all_edges=True)
-    p.show_axes()
-    p.show()
+    """def internal_forces(self, *args, key=None, **kwargs):
+        key = 'internal_forces' if key is None else key
+        return super().internal_forces(*args, key=key, **kwargs)"""
+
+    """def postprocess(self, *args, smoothen=True, **kwargs):
+        self.internal_forces(store=True, key='internal_forces', integrate=False)
+        if smoothen:
+            self.smoothen_internal_forces(key='internal_forces')
+        pass"""
+
+    def smoothen_internal_forces(self, key='internal_forces'):
+        """
+        The implementation assumed a regular and tight topology and that
+        the frames have a uniform material distribution.
+        """
+        topo = self.topology()
+        nE, nNE = topo.shape
+        def f(b): return b.celldata.frames.to_numpy()
+        frames = np.vstack(list(map(f, self.cellblocks(inclusive=True))))
+        N = (topo.max() + 1) * self.NDOFN
+        # inperpolate with fitting polynomial of smoothed nodal values
+        ndf = self.nodal_distribution_factors(store=False, measure='uniform')
+        # we need to transform all values to the global frame, so we can add them
+        # (nDOF, nE, nNE, nRHS) --> (nE, nNE, nRHS, nDOF)
+        data = self.internal_forces(key=key)  # (nE, nEVAB, nRHS)
+        # (nE, nNE, nDOF, nRHS)
+        data = data.reshape(nE, nNE, self.NDOFN, data.shape[-1])
+        data = swap(data, 2, 3)  # (nE, nNE, nRHS, nDOFN)
+        data[:, :, :, :3] = tr_cell_gauss_out(
+            ascont(data[:, :, :, :3]), frames)
+        data[:, :, :, 3:] = tr_cell_gauss_out(
+            ascont(data[:, :, :, 3:]), frames)
+        # the following line calculates nodal values as the weighted average of cell-nodal data,
+        # the weights are the nodal distribution factors
+        data = collect_nodal_data(data, topo, ndf=ndf, N=N)  # (N, nRHS, nDOF)
+        # the following line redistributes nodal data to the cells (same nodal value for neighbouring cells)
+        data = distribute_nodal_data(data, topo)  # (nE, nNE, nRHS, nDOF)
+        # transform all values back to the local frames of the elements
+        data[:, :, :, :3] = tr_cell_gauss_in(ascont(data[:, :, :, :3]), frames)
+        data[:, :, :, 3:] = tr_cell_gauss_in(ascont(data[:, :, :, 3:]), frames)
+        data = swap(data, 2, 3)  # -> (nE, nNE, nDOF, nRHS)
+        # (nE, nNE * nDOF, nRHS)
+        data = data.reshape(nE, nNE * self.NDOFN, data.shape[-1])
+        # store results
+        # data : (nE, nNE * nDOF, nRHS)
+        self.internal_forces(store=data, key=key)
+
+
+if __name__ == '__main__':
+    pass

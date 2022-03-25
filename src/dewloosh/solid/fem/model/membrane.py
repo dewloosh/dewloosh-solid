@@ -38,8 +38,7 @@ def strain_displacement_matrix(dshp: ndarray, jac: ndarray):
 def material_strains(strns: ndarray, z: float):
     nE, nP = strns.shape[:2]
     res = np.zeros((nE, nP, _NHOOKE_), dtype=strns.dtype)
-    res[:, :, :3] = strns[:, :, :3] * z
-    res[:, :, 3:] = strns[:, :, 3:]
+    res[:, :, :3] = strns[:, :, :3]
     return res
 
 
@@ -80,6 +79,7 @@ class Membrane(Surface):
 
     @classmethod
     def material_strains(cls, model_strains, z, t, *args, **kwargs):
+        raise NotImplementedError
         return material_strains(model_strains, z)
     
 

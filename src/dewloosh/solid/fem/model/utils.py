@@ -21,7 +21,7 @@ def model_strains(dofsol1d: ndarray, gnum: ndarray, B: ndarray):
 
 @njit(nogil=True, parallel=True, cache=__cache)
 def stresses_from_strains(C: ndarray, strains: ndarray):
-    nE, nP, NSTRE = strains.shape
+    nE, nP, _ = strains.shape
     res = np.zeros_like(strains)
     for iE in prange(nE):
         for iP in prange(nP):

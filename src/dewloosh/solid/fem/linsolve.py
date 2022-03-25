@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
+from re import U
 import numpy as np
 from numpy import ndarray
-from scipy.sparse import csc_matrix as csc
-from scipy.sparse import coo_matrix as coo
-from scipy.sparse import isspmatrix as isspmatrix_np
+import numpy as np
+from scipy.sparse import coo_matrix as coo, spmatrix, isspmatrix as isspmatrix_np
 from scipy.sparse.linalg import spsolve, spsolve_triangular, splu
-from scipy.sparse import spmatrix
+from scipy.sparse import coo_matrix as npcoo, csc_matrix as npcsc
 from typing import Union
 from time import time
-from concurrent.futures import ThreadPoolExecutor
+#from concurrent.futures import ThreadPoolExecutor
 
 from dewloosh.math.array import matrixform
 
 from .imap import index_mappers, box_spmatrix, box_rhs, unbox_lhs, box_dof_numbering
-from .utils import weighted_stiffness_bulk, irows_icols_bulk
+from .utils import irows_icols_bulk
 from .preproc import fem_coeff_matrix_coo
 from .utils import irows_icols_bulk
 
@@ -27,57 +27,78 @@ if __haspardiso__:
 arraylike = Union[ndarray, spmatrix]
 
 
-def linsolve(K: arraylike, *args, gnum=None, **kwargs):
-    if isspmatrix_np(K):
-        return linsolve_sparse(K, *args, **kwargs)
-    elif isinstance(K, np.ndarray) and gnum is not None:
-        return linsolve_bulk(K, *args, gnum, **kwargs)
+def solve_standard_form(K: coo, f: np.ndarray, *args, use_umfpack=True, summary=False,
+                        permc_spec='COLAMD', solver=None, mtype=11, assume_regular=False,
+                        **kwargs):
+    solver = 'pardiso' if __haspardiso__ else 'scipy' if solver is None else solver
+    if solver == 'pardiso' and not __haspardiso__:
+        raise ImportError(
+            "You need to install 'pypardiso' for solver type <{}>".format(solver))
 
+    if not assume_regular:
+        K.eliminate_zeros()
+        K.sum_duplicates()
+        f = matrixform(f)
 
-def solve_standard_form(K: coo, f: np.ndarray, *args, sparsify=False,
-                        use_umfpack=True, summary=False,
-                        permc_spec='COLAMD', **kwargs):
-    f = matrixform(f)
-    f = csc(f) if sparsify else f
-    if use_umfpack:
-        use_umfpack = True if f.shape[1] == 1 else False
-    t0 = time()
-    if len(args) > 0:
-        if 'lower' in args:
-            solver = 'scipy.sparse.linalg.spsolve_triangular (lower)'
+    if solver == 'pardiso':
+        if mtype == 11:
             t0 = time()
-            u = spsolve_triangular(K, f, lower=True)
+            u = ppd.spsolve(K, f)
             dt = time() - t0
-        elif 'upper' in args:
-            solver = 'scipy.sparse.linalg.spsolve_triangular (upper)'
+        else:
+            pds = PyPardisoSolver(mtype=mtype)
             t0 = time()
-            u = spsolve_triangular(K, f, lower=False)
+            u = pds.solve(K, f)
             dt = time() - t0
-        elif 'SLU' in args:
-            solver = 'scipy.sparse.linalg.SuperLU'
-            K = K.tocsc()
+    elif solver == 'scipy':
+        if len(args) > 0:
+            if 'lower' in args:
+                solver = 'scipy.sparse.linalg.spsolve_triangular (lower)'
+                t0 = time()
+                u = spsolve_triangular(K, f, lower=True)
+                dt = time() - t0
+            elif 'upper' in args:
+                solver = 'scipy.sparse.linalg.spsolve_triangular (upper)'
+                t0 = time()
+                u = spsolve_triangular(K, f, lower=False)
+                dt = time() - t0
+            elif 'SLU' in args:
+                solver = 'scipy.sparse.linalg.SuperLU'
+                K = K.tocsc()
+                t0 = time()
+                LU = splu(K)
+                u = LU.solve(f)
+                dt = time() - t0
+        else:
+            if use_umfpack:
+                use_umfpack = True if f.shape[1] == 1 else False
+            solver = 'scipy.sparse.linalg.spsolve'
             t0 = time()
-            LU = splu(K)
-            u = LU.solve(f)
+            u = spsolve(K, f, permc_spec=permc_spec, use_umfpack=use_umfpack)
             dt = time() - t0
     else:
-        solver = 'scipy.sparse.linalg.spsolve'
-        t0 = time()
-        u = spsolve(K, f, permc_spec=permc_spec, use_umfpack=use_umfpack)
-        dt = time() - t0
+        raise NotImplementedError(
+            "Selected solver '{}' is not supported!".format(solver))
+
     if isspmatrix_np(u):
         u = u.todense()
+    u = u.reshape(f.shape)
+
+    # residual
     if summary:
         d = {
-            'time [ms]': dt * 1000,
+            'time [s]': dt * 1000,
             'N': u.shape[0],
-            'use_umfpack': use_umfpack,
-            'permc_spec': permc_spec,
-            'sparsify': sparsify,
-            'solver': solver
-        }
+            'solver': solver,
+            'options': {}}
+        if solver == 'scipy':
+            d['options']['use_umfpack'] = use_umfpack
+            d['options']['permc_spec'] = permc_spec
+        elif solver == 'pardiso':
+            d['options']['mtype'] = mtype
         return u, d
-    return u
+    else:
+        return u
 
 
 def box_fem_data_sparse(K_coo: coo, Kp_coo: coo, f: ndarray):
@@ -150,25 +171,111 @@ def linsolve_sparse(K_coo: coo, Kp_coo: coo,
     # solution
     u, d = solve_standard_form(K, f, *args, sparsify=sparsify,
                                use_umfpack=use_umfpack,
-                               summary=summary, **kwargs)
+                               summary=True, **kwargs)
     # unboxing
     u = unbox_lhs(u, loc_to_glob, N)
 
     if summary:
-        d['boxing'] = loc_to_glob is not None
+        d['regular'] = loc_to_glob is not None
         return u, d
     return u
 
 
 def linsolve_bulk(K_bulk: np.ndarray, Kp_coo: coo, f: np.ndarray,
                   gnum: np.ndarray, *args, **kwargs):
-    rows, cols = irows_icols_bulk(gnum)
-    K_coo = fem_coeff_matrix_coo(K_bulk, gnum=gnum, N=f.shape[0])
+    K_coo = fem_coeff_matrix_coo(K_bulk, inds=gnum, N=f.shape[0])
     return linsolve_sparse(K_coo, Kp_coo, f, *args, **kwargs)
 
 
-def linsolve_bulk_pop(K_bulk: np.ndarray, Kp_coo: coo, f: np.ndarray,
-                      gnum: np.ndarray, factors: np.ndarray, *args,
+def linsolve(K: arraylike, *args, gnum=None, **kwargs):
+    if isspmatrix_np(K):
+        return linsolve_sparse(K, *args, **kwargs)
+    elif isinstance(K, np.ndarray) and gnum is not None:
+        return linsolve_bulk(K, *args, gnum, **kwargs)
+
+
+class FemSolver:
+
+    def __init__(self, K, Kp, f, gnum, imap=None, regular=True, **config):
+        self.K = K
+        self.Kp = Kp
+        self.gnum = gnum
+        self.f = f
+        self.config = config
+        self.regular = regular
+        self.imap = imap
+        if imap is not None:
+            # Ff imap.shape[0] > f.shape[0] it means that the inverse of
+            # the mapping is given. It would require to store more data, but
+            # it would enable to tell the total size of the equation system, that the
+            # input is a representation of.
+            assert imap.shape[0] == f.shape[0]
+        self.regular = False if imap is not None else regular
+        self.solver = self.encode()
+        self.READY = False
+
+    def encode(self) -> 'FemSolver':
+        if self.imap is None and not self.regular:
+            Kp, gnum, f, imap = box_fem_data_bulk(self.Kp, self.gnum, self.f)
+            self.imap = imap
+            return FemSolver(self.K, Kp, f, gnum, regular=True)
+        else:
+            return self
+
+    def preproc(self, force=False):
+        if self.READY and not force:
+            return
+        self.N = self.gnum.max() + 1
+        self.f = npcsc(self.f) if self.config.get(
+            'sparsify', False) else self.f
+        self.krows, self.kcols = irows_icols_bulk(self.gnum)
+        self.krows = self.krows.flatten()
+        self.kcols = self.kcols.flatten()
+
+        if not self.regular:
+            self.solver.preproc()
+            self.Ke = self.solver.Ke
+        else:
+            self.Ke = npcoo((self.K.flatten(), (self.krows, self.kcols)),
+                            shape=(self.N, self.N), dtype=self.K.dtype)
+        self.READY = True
+
+    def proc(self, solver=None):
+        if not self.regular:
+            return self.solver.proc()
+        Kcoo = self.Ke + self.Kp
+        Kcoo.eliminate_zeros()
+        Kcoo.sum_duplicates()
+        self.u, self.summary = solve_standard_form(
+            Kcoo, self.f, summary=True, solver=solver)
+
+    def postproc(self):
+        if not self.regular:
+            self.solver.postproc()
+            return self.decode()
+        self.r = np.reshape(self.Ke.dot(self.u), self.f.shape) - self.f
+
+    def linsolve(self, *args, solver=None, summary=False, **kwargs):
+        self.summary = {}
+
+        self.preproc()
+        self.proc(solver=solver)
+        self.postproc()
+
+        if summary:
+            return self.u, self.summary
+        else:
+            return self.u
+
+    def decode(self):
+        assert not self.regular
+        N = self.gnum.max() + 1
+        self.u = unbox_lhs(self.solver.u, self.imap, N=N)
+        self.r = unbox_lhs(self.solver.r, self.imap, N=N)
+
+
+"""def linsolve_bulk_pop(K_bulk: np.ndarray, Kp_coo: coo, f: np.ndarray,
+                      gnum: np.ndarray, fsolvers: np.ndarray, *args,
                       sparsify=True, use_umfpack=True,
                       summary=False, parallel=True,
                       max_workers=4, permc_spec='COLAMD', **kwargs):
@@ -176,7 +283,7 @@ def linsolve_bulk_pop(K_bulk: np.ndarray, Kp_coo: coo, f: np.ndarray,
     N = f.shape[0]
     loc_to_glob, glob_to_loc = \
         index_mappers(gnum, N=N, return_inverse=True)
-    nPop, nE = factors.shape
+    nPop, nE = fsolvers.shape
     gnum = box_dof_numbering(gnum, glob_to_loc)
     M = gnum.max() + 1
     dtype = K_bulk.dtype
@@ -191,7 +298,7 @@ def linsolve_bulk_pop(K_bulk: np.ndarray, Kp_coo: coo, f: np.ndarray,
     rows, cols = list(map(lambda x: x.flatten(), irows_icols_bulk(gnum)))
 
     def K_bulk_w(i): return weighted_stiffness_bulk(
-        K_bulk, factors[i]).flatten()
+        K_bulk, fsolvers[i]).flatten()
     def K_coo(i): return coo((K_bulk_w(i), (rows, cols)), shape=shape,
                              dtype=dtype)
 
@@ -229,3 +336,4 @@ def linsolve_bulk_pop(K_bulk: np.ndarray, Kp_coo: coo, f: np.ndarray,
         }
         return u, d
     return u
+"""

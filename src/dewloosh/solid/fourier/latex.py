@@ -64,5 +64,3 @@ def expr_to_ltx_breqn(lhs, rhs, *args, env='{dmath}', **kwargs):
     return expr_to_ltx(lhs, rhs, *args, env=env, **kwargs)
 
 
-def eq_to_ltx_multiline(lhs, rhs, *args, nsplit=2, **kwargs):
-    kwargs['env'] = '{multline}'

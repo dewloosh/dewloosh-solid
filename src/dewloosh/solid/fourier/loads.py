@@ -3,13 +3,14 @@ import json
 import numpy as np
 from numpy import sin, cos, ndarray, pi as PI
 from numba import njit, prange
+from collections import Iterable
 
 from dewloosh.core import squeeze
 from dewloosh.core.types import Library
 from dewloosh.core.types.defaultdict import parsedicts_addr
 from dewloosh.core.tools import allinkwargs, popfromdict, float_to_str_sig
 
-from dewloosh.math.array import atleast2d, atleast3d
+from dewloosh.math.array import atleast1d, atleast2d, atleast3d
 
 
 class LoadGroup(Library):
@@ -232,6 +233,49 @@ def _rect_const_(size: tuple, shape: tuple, values: np.ndarray,
     return rhs
 
 
+class LineLoad(LoadGroup):
+    _typestr_ = 'line'
+
+    def __init__(self, *args, points=None, values=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._points = np.array(points, dtype=float)
+        self._values = np.array(values, dtype=float)
+        
+    @classmethod
+    def decode(cls, d: dict = None, *args, **kwargs):
+        if d is None:
+            d = kwargs
+            kwargs = None
+        if kwargs is not None:
+            d.update(kwargs)
+        clskwargs = {
+            'key': d.pop('key', None),
+            'points': np.array(d.pop('points')),
+            'values': np.array(d.pop('values')),
+        }
+        clskwargs.update(d)
+        return cls(**clskwargs)
+    
+    def encode(self, *args, **kwargs) -> dict:
+        res = {}
+        cls = type(self)
+        res = {
+            'type': cls._typestr_,
+            'key': self.key,
+            'points': float_to_str_sig(self._points, sig=6),
+            'values': float_to_str_sig(self._values, sig=6),
+        }
+        return res
+    
+    def rhs(self, *args, **kwargs):
+        raise NotImplementedError
+        Navier = kwargs.get('Navier', self.Navier())
+        return rhs_conc(Navier.size, Navier.shape, self.value, self.point)
+
+    def __repr__(self):
+        return 'LineLoad(%s)' % (dict.__repr__(self))
+
+
 class PointLoad(LoadGroup):
     _typestr_ = 'point'
 
@@ -268,20 +312,44 @@ class PointLoad(LoadGroup):
 
     def rhs(self, *args, **kwargs):
         Navier = kwargs.get('Navier', self.Navier())
-        return rhs_conc(Navier.size, Navier.shape, self.value, self.point)
+        return rhs_conc_2d(Navier.size, Navier.shape, self.value, self.point)
 
     def __repr__(self):
         return 'PointLoad(%s)' % (dict.__repr__(self))
 
 
 @squeeze(True)
-def rhs_conc(size: tuple, shape: tuple, values: np.ndarray,
-             points: np.ndarray, *args, **kwargs):
-    return _conc_(size, shape, atleast2d(values), atleast2d(points))
+def rhs_conc_2d(size: tuple, shape: tuple, values: np.ndarray,
+                points: np.ndarray, *args, **kwargs):
+    if isinstance(size, Iterable):
+        return _conc2d_(size, shape, atleast2d(values), atleast2d(points))
+    else:
+        raise NotImplementedError
+        return _conc1d_(size, shape, atleast2d(values), atleast1d(points))
 
 
 @njit(nogil=True, parallel=True, cache=True)
-def _conc_(size: tuple, shape: tuple, values: ndarray, points: ndarray):
+def _conc1d_(size: tuple, shape: tuple, values: ndarray, points: ndarray):
+    # FIXME Not verified
+    nRHS = values.shape[0]
+    Lx = size
+    c = 2 / Lx
+    N = shape
+    rhs = np.zeros((nRHS, N, 2), dtype=points.dtype)
+    PI = np.pi
+    for iRHS in prange(nRHS):
+        x = points[iRHS]
+        my, fz = values[iRHS]
+        Sx = PI * x / Lx
+        for i in prange(N):
+            rhs[iRHS, i, :] = c
+            rhs[iRHS, i, 0] *= my * cos(i * Sx)
+            rhs[iRHS, i, 1] *= fz * sin(i * Sx)
+    return rhs
+
+
+@njit(nogil=True, parallel=True, cache=True)
+def _conc2d_(size: tuple, shape: tuple, values: ndarray, points: ndarray):
     nRHS = values.shape[0]
     Lx, Ly = size
     c = 4 / Lx / Ly

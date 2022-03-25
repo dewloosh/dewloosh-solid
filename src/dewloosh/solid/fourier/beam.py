@@ -10,7 +10,7 @@ from .postproc import postproc
 from .proc import linsolve
 
 
-class RectangularPlate:
+class Beam:
 
     def __init__(self, size: tuple, shape: tuple, *args,
                  D: np.ndarray = None, S: np.ndarray=None,
@@ -39,13 +39,9 @@ class RectangularPlate:
     def add_point_load(self, name: str, pos: Iterable, value: Iterable,
                        **kwargs):
         raise NotImplementedError
-        file = PointLoad(key=name, point=pos, value=value, **kwargs)
-        return self.loads.new_file(file)
 
-    def add_rect_load(self, name: str, **kwargs):
+    def add_line_load(self, name: str, **kwargs):
         raise NotImplementedError
-        file = RectLoad(key=name, **kwargs)
-        return self.loads.new_file(file)
 
     def add_loads_from_dict(self, d: dict, *args, **kwargs):
         self.loads = LoadGroup.from_dict(d)

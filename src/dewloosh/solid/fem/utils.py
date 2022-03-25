@@ -345,7 +345,9 @@ def nodal_compatibility_factors(nam_csr_tot: csr, nam: ndarray, topo: ndarray):
 
 @njit(nogil=True, parallel=True, cache=__cache)
 def compatibility_factors_to_coo(ncf: dict, nreg: dict):
-    """ncf : nodal_compatibility_factors"""
+    """
+    ncf : nodal_compatibility_factors
+    """
     nN = len(ncf)
     widths = np.zeros(nN, dtype=np.int32)
     for iN in prange(nN):
@@ -404,25 +406,26 @@ def compatibility_factors(ncf: dict, nreg: dict, NDOFN: int):
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def element_transformation_matrices_bulk(Q: ndarray, nNE: int = 2):
-    nE = Q.shape[0]
-    nEVAB = nNE * 6
-    res = np.zeros((nE, nEVAB, nEVAB), dtype=Q.dtype)
-    for iE in prange(nE):
-        for j in prange(2*nNE):
-            res[iE, 3*j: 3*(j+1), 3*j: 3*(j+1)] = Q[iE]
-    return res
-
-
-@njit(nogil=True, parallel=True, cache=__cache)
-def tr_cells_2d_out(K: ndarray, Q: ndarray):
+def tr_cells_1d_in(A: ndarray, Q: ndarray):
     """
-    Transforms element coefficient matrices (like the stiffness matrix) 
-    from local to global.
+    Transforms element vectors (like the load vector) from global to local.
+    
+    Parameters
+    ----------
+    A : 3d NumPy float array of shape (nE, nEVAB)
+        Array of coefficients to transform.
+        
+    Q : 3d NumPy float array of shape (nE, nEVAB, nEVAB)
+        Transformation matrices.
+        
+    Returns
+    -------
+    numpy array
+        NumPy array with the same shape as 'A'
     """
-    res = np.zeros_like(K)
+    res = np.zeros_like(A)
     for iE in prange(res.shape[0]):
-        res[iE] = Q[iE].T @ K[iE] @ Q[iE]
+        res[iE] = Q[iE] @ A[iE]
     return res
 
 
@@ -463,4 +466,47 @@ def tr_cells_1d_out_multi(A: ndarray, Q: ndarray):
     for iE in prange(res.shape[0]):
         for jRHS in prange(res.shape[1]):
             res[iE, jRHS] = Q[iE].T @ A[iE, jRHS]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def element_dof_solution_bulk(dofsol1d: ndarray, gnum: ndarray):
+    """
+    dofsol (nN * nDOF, nRHS)
+    gnum (nE, nEVAB)
+    ---
+    (nE, nEVAB, nRHS)
+    """
+    nRHS = dofsol1d.shape[1]
+    nE, nEVAB = gnum.shape
+    res = np.zeros((nE, nEVAB, nRHS), dtype=dofsol1d.dtype)
+    for i in prange(nE):
+        for j in prange(nRHS):
+            res[i, :, j] = dofsol1d[gnum[i, :], j]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def transform_stiffness(K: ndarray, dcm: ndarray):
+    """
+    Transforms element stiffness matrices from local to global.
+    """
+    res = np.zeros_like(K)
+    for iE in prange(res.shape[0]):
+        res[iE] = dcm[iE].T @ K[iE] @ dcm[iE]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def internal_forces(K: ndarray, dofsol: ndarray):
+    """
+    Transforms element stiffness matrices from local to global.
+    ---
+    (nE, nRHS, nEVAB)
+    """
+    nE, nRHS, nEVAB  = dofsol.shape
+    res = np.zeros_like(dofsol)
+    for i in prange(nE):
+        for j in prange(nRHS):
+            res[i, j] = K[i] @ dofsol[i, j]
     return res
