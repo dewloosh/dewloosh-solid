@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 from scipy.sparse import coo_matrix
-from scipy.interpolate import interp1d
 import numpy as np
 from collections import namedtuple, Iterable
 
 from dewloosh.core import squeeze
 
+from dewloosh.math.linalg import ReferenceFrame, Vector
 from dewloosh.math.array import atleast1d, atleastnd, ascont
 from dewloosh.math.utils import to_range
 
 from dewloosh.geom.utils import distribute_nodal_data, \
-    collect_nodal_data, pcoords_to_coords_1d
+    collect_nodal_data
 
 from .preproc import fem_coeff_matrix_coo
 from .postproc import approx_element_solution_bulk, calculate_internal_forces_bulk
@@ -19,7 +19,7 @@ from .utils import topo_to_gnum, approximation_matrix, nodal_approximation_matri
     nodal_compatibility_factors, compatibility_factors_to_coo, \
     compatibility_factors, penalty_factor_matrix, assemble_load_vector
 from .utils import tr_cells_1d_in_multi, tr_cells_1d_out_multi, element_dof_solution_bulk, \
-    transform_stiffness, internal_forces
+    transform_stiffness
 
 
 Quadrature = namedtuple('QuadratureRule', ['inds', 'pos', 'weight'])
@@ -188,8 +188,15 @@ class FiniteElement:
         
         if target is not None:
             # transform values to a destination frame, otherwise return
-            # the results in the local frames of the cells
-            assert target == 'local'
+            # the results in the local frames of the cells 
+            if isinstance(target, ReferenceFrame):
+                raise NotImplementedError
+            elif isinstance(target, str):
+                if target == 'local':
+                    pass
+                elif target == 'global':
+                    pass
+                    #target.dcm() @ self.dcm().T 
                    
         if flatten:
             nE, nP, nDOF, nRHS = values.shape

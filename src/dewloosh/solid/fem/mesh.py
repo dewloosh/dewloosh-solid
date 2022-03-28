@@ -181,7 +181,8 @@ class FemMesh(PolyData):
             return dofsol
 
     @squeeze(True)
-    def cell_dof_solution(self, *args, cells=None, flatten=True, **kwargs):
+    def cell_dof_solution(self, *args, cells=None, flatten=True, 
+                          squeeze=True, **kwargs):
         blocks = self.cellblocks(inclusive=True)
         kwargs.update(flatten=flatten, squeeze=False)
         if cells is not None:
@@ -195,7 +196,7 @@ class FemMesh(PolyData):
             return np.vstack(list(map(foo, blocks)))
         
     @squeeze(True)
-    def strains(self, *args, cells=None, **kwargs):
+    def strains(self, *args, cells=None, squeeze=True, **kwargs):
         blocks = self.cellblocks(inclusive=True)
         kwargs.update(squeeze=False)
         if cells is not None:
@@ -209,10 +210,9 @@ class FemMesh(PolyData):
             return np.vstack(list(map(foo, blocks)))
         
     @squeeze(True)
-    def internal_forces(self, *args, cells=None, flatten=True,
-                        store=False, **kwargs):
+    def internal_forces(self, *args, cells=None, flatten=True, squeeze=True, **kwargs):
         blocks = self.cellblocks(inclusive=True)
-        kwargs.update(flatten=flatten, store=store, squeeze=False)
+        kwargs.update(flatten=flatten, squeeze=False)
         if cells is not None:
             kwargs.update(cells=cells)
             res = {}
@@ -224,7 +224,7 @@ class FemMesh(PolyData):
             return np.vstack(list(map(foo, blocks)))
 
     @squeeze(True)
-    def reaction_forces(self, *args, flatten=False, **kwargs):
+    def reaction_forces(self, *args, flatten=False, squeeze=True, **kwargs):
         x = self.root().pointdata.reactions.to_numpy()
         if flatten:
             if len(x.shape) == 2:

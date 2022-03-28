@@ -141,19 +141,19 @@ class Structure(Wrapper):
         self.Solver = None
 
     @squeeze(True)
-    def nodal_dof_solution(self, *args, flatten=False, **kwargs):
+    def nodal_dof_solution(self, *args, flatten=False, squeeze=True, **kwargs):
         return self.mesh.nodal_dof_solution(*args, flatten=flatten, squeeze=False, **kwargs)
 
     @squeeze(True)
-    def reaction_forces(self, *args, flatten=False, **kwargs):
+    def reaction_forces(self, *args, flatten=False, squeeze=True, **kwargs):
         return self.mesh.reaction_forces(*args, flatten=flatten, squeeze=False, **kwargs)
 
     @squeeze(True)
-    def nodal_forces(self, *args, flatten=False, **kwargs):
+    def nodal_forces(self, *args, flatten=False, squeeze=True, **kwargs):
         return self.mesh.nodal_forces(*args, flatten=flatten, squeeze=False, **kwargs)
     
     @squeeze(True)
-    def internal_forces(self, *args, flatten=False, **kwargs):
+    def internal_forces(self, *args, flatten=False, squeeze=True, **kwargs):
         return self.mesh.internal_forces(*args, flatten=flatten, squeeze=False, **kwargs)
 
 

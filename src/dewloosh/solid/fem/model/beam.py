@@ -123,7 +123,7 @@ class BernoulliBeam(Solid):
     def model_stiffness_matrix(self, *args, **kwargs):
         return self.material_stiffness_matrix()
 
-    def direction_cosine_matrix(self, source=None):
+    def direction_cosine_matrix(self, *args, source=None, target=None, **kwargs):
         if source is not None:
             raise NotImplementedError
         frames = self.frames.to_numpy()  # dcm_G_L
