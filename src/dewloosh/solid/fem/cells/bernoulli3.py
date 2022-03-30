@@ -27,7 +27,7 @@ class Bernoulli3(Line, BernoulliBase):
 
     qrule = 'full'
     quadrature = {
-        'full': Gauss(4)
+        'full': Gauss(6)
     }
 
     def shape_function_values(self, pcoords: ArrayOrFloat, *args,

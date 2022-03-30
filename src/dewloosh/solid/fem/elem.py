@@ -184,20 +184,25 @@ class FiniteElement:
         N = self.shape_function_matrix(points, rng=rng)[cells]  # (nE, nP, nDOF, nDOF * nNODE)
         values = ascont(np.swapaxes(values, 1, 2))  # (nE, nRHS, nEVAB)
         values = approx_element_solution_bulk(values, N)  # (nE, nRHS, nP, nDOF)
-        values = ascont(np.moveaxis(values, 1, -1))   # (nE, nP, nDOF, nRHS)
         
         if target is not None:
             # transform values to a destination frame, otherwise return
-            # the results in the local frames of the cells 
-            if isinstance(target, ReferenceFrame):
-                raise NotImplementedError
-            elif isinstance(target, str):
+            # the results in the local frames of the cells
+            if isinstance(target, str):
                 if target == 'local':
                     pass
                 elif target == 'global':
-                    pass
-                    #target.dcm() @ self.dcm().T 
-                   
+                    nDOF = values.shape[2]
+                    target = ReferenceFrame(dim=nDOF)
+            if isinstance(target, ReferenceFrame):    
+                nE, nRHS, nP, nDOF = values.shape
+                values = values.reshape(nE, nRHS, nP * nDOF)
+                dcm = self.direction_cosine_matrix(N=nP)[cells]
+                values = tr_cells_1d_out_multi(values, dcm)
+                values = values.reshape(nE, nRHS, nP, nDOF)
+                            
+        values = np.moveaxis(values, 1, -1)   # (nE, nP, nDOF, nRHS)
+            
         if flatten:
             nE, nP, nDOF, nRHS = values.shape
             values = values.reshape(nE, nP * nDOF, nRHS)  
@@ -382,79 +387,7 @@ class FiniteElement:
             raise TypeError("Invalid data type <> for cells.".format(type(cells)))    
         
         return data
-            
-    """def internal_forces(self, *args, store=False, target=None, 
-                        key=None, cells=None, points=None, 
-                        rng=None, flatten=True, 
-                        **kwargs):
-        #(nE, nEVAB, nRHS) if flatten else (nE, nNE, nDOF, nRHS)         
-        if isinstance(store, np.ndarray):
-            self._wrapped[key] = store  # (nE, nEVAB, nRHS)
-            return store
-        
-        if cells is not None:
-            cells = atleast1d(cells)
-            conds = np.isin(cells, self.id.to_numpy())
-            cells = atleast1d(cells[conds])
-            if len(cells) == 0:
-                return {} 
-        else:
-            cells = np.s_[:]
-        
-        if isinstance(key, str) and not store:
-            assert key in self._wrapped.fields 
-            # FIXME if points are specified, we could use the stored values
-            # under the field 'key' in the awkward array and the assumption that
-            # the stored values are wrt. to the nodes of the element, to interpolate
-            # for the evaluation points described by 'points'.
-            values = self._wrapped[key].to_numpy()[cells]  # (nE, nEVAB, nRHS)
-        elif key is None or (isinstance(key, str) and store):          
-            # calculate from dof solution
-            K = self.K.to_numpy()[cells]
-            values = self.dof_solution(target='local', squeeze=False)[cells] # (nE, nEVAB, nRHS)
-            values = ascont(np.swapaxes(values, 1, 2))  # (nE, nRHS, nEVAB)
-            values = internal_forces(K, values)  # (nE, nRHS, nEVAB)
-            values = ascont(np.swapaxes(values, 1, 2)) # (nE, nEVAB, nRHS)
-        
-        if store:
-            assert isinstance(cells, slice)
-            key = 'internal_forces' if key is None else key
-            self._wrapped[key] = values
-        
-        lcoords = np.array(self.lcoords()).flatten()
-        if points is None:
-            points = lcoords
-            rng = [-1, 1]
-        else:
-            rng = np.array([0, 1]) if rng is None else np.array(rng)
-        lcoords = to_range(lcoords, source=[-1, 1], target=rng).flatten()
-        
-        # approximate values : (nE, nEVAB, nRHS)
-        nE, _, nRHS = values.shape
-        values = values.reshape(nE, len(lcoords), self.NDOFN, nRHS)
-        f = interp1d(lcoords, values, axis=1, assume_sorted=True)
-        values = f(points)  # (nE, nP, nDOF, nRHS)
-                        
-        if target is not None:
-            # transform values to a destination frame, otherwise return
-            # the results in the local frames of the cells
-            raise NotImplementedError
-                   
-        if flatten:
-            nE, nP, nDOF, nRHS = values.shape
-            values = values.reshape(nE, nP * nDOF, nRHS)  
-        
-        # values : (nE, nP, nDOF, nRHS) or (nE, nP * nDOF, nRHS)
-        if isinstance(cells, slice):
-            # results are requested on all elements 
-            data = values
-        elif isinstance(cells, Iterable):
-            data = {c : values[i] for i, c in enumerate(cells)}                    
-        else:
-            raise TypeError("Invalid data type <> for cells.".format(type(cells)))    
-        
-        return data"""
-        
+                    
     def global_dof_numbering(self, *args, topo=None, **kwargs):
         topo = self.nodes.to_numpy() if topo is None else topo
         return topo_to_gnum(topo, self.NDOFN)

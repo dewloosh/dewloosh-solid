@@ -4,6 +4,7 @@ import numpy as np
 from numpy import ndarray
 from typing import Union
 
+from dewloosh.math.linalg import ReferenceFrame, Vector
 
 from .solid import Solid
 
@@ -66,12 +67,23 @@ def strain_displacement_matrix_bulk(gdshp: ndarray):
     return B
 
 
-@njit(nogil=True, cache=__cache)
+"""@njit(nogil=True, cache=__cache)
 def nodal_dcm(dcm: ndarray):
     nE = dcm.shape[0]
     res = np.zeros((nE, 6, 6), dtype=dcm.dtype)
     res[:, :3, :3] = dcm
     res[:, 3:, 3:] = dcm
+    return res"""
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def nodal_dcm(dcm: ndarray, N=2):
+    nE = dcm.shape[0]
+    res = np.zeros((nE, 3 * N, 3 * N), dtype=dcm.dtype)
+    for i in prange(N):
+        _i = i * 3
+        i_ = _i + 3
+        res[:, _i:i_, _i:i_] = dcm
     return res
 
 
@@ -123,11 +135,30 @@ class BernoulliBeam(Solid):
     def model_stiffness_matrix(self, *args, **kwargs):
         return self.material_stiffness_matrix()
 
-    def direction_cosine_matrix(self, *args, source=None, target=None, **kwargs):
-        if source is not None:
-            raise NotImplementedError
+    def direction_cosine_matrix(self, *args, source=None, target=None, N=None, **kwargs):
+        N = self.__class__.NNODE if N is None else N
         frames = self.frames.to_numpy()  # dcm_G_L
-        return element_dcm(nodal_dcm(frames), self.__class__.NNODE)
+        dcm = element_dcm(nodal_dcm(frames), N)
+        if source is not None:
+            if isinstance(source, str):
+                if source == 'global':
+                    S = ReferenceFrame(dim = dcm.shape[-1]) 
+                    return ReferenceFrame(dcm).dcm(source=S)
+            elif isinstance(source, ReferenceFrame):
+                assert source.dim == 2
+                return ReferenceFrame(dcm).dcm(source=source)
+            else:
+                raise NotImplementedError
+        elif target is not None:
+            if isinstance(target, str):
+                if target == 'global':
+                    return ReferenceFrame(dcm)
+            elif isinstance(target, ReferenceFrame):
+                assert target.dim == 2
+                return ReferenceFrame(dcm).dcm(target=target)
+            else:
+                raise NotImplementedError
+        return dcm
 
     def strain_displacement_matrix(self, pcoords: ArrayOrFloat = None, *args,
                                    jac=None, rng=None, dshp=None, **kwargs):

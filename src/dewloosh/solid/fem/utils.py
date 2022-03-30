@@ -460,7 +460,8 @@ def tr_cells_1d_out_multi(A: ndarray, Q: ndarray):
     """
     Transforms element vectors (like the load vector) from local to global
     for multiple cases.
-    (nE, nRHS, nNE * nDOF)
+    A (nE, nRHS, nP * nDOF)
+    Q (nE, nP * nDOF)
     """
     res = np.zeros_like(A)
     for iE in prange(res.shape[0]):
