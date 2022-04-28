@@ -46,7 +46,7 @@ class FemMesh(PolyData):
 
             # strain loads
             if strain_loads is None:
-                strain_loads = np.zeros((nE, self.celldata.NDOFN, 1))
+                strain_loads = np.zeros((nE, self.celldata.NSTRE, 1))
             assert isinstance(strain_loads, np.ndarray)
             assert strain_loads.shape[0] == nE
             self.celldata._wrapped['strain-loads'] = strain_loads

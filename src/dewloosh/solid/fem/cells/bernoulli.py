@@ -22,8 +22,8 @@ class BernoulliBase(BernoulliBeam, FiniteElement):
 
     qrule: str = None
     quadrature: dict = None
-    shpfnc : Callable = None
-    dshpfnc : Callable = None
+    shpfnc: Callable = None
+    dshpfnc: Callable = None
 
     def shape_function_values(self, pcoords: ArrayOrFloat, *args,
                               rng: Iterable = None, lengths=None,
@@ -71,10 +71,9 @@ class BernoulliBase(BernoulliBeam, FiniteElement):
             pcoords, list) else pcoords)
         rng = np.array([-1, 1]) if rng is None else np.array(rng)
         lengths = self.lengths() if lengths is None else lengths
-        shp = self.shape_function_values(
-            pcoords=pcoords, rng=rng, lengths=lengths)
-        gdshp = self.shape_function_derivatives(*args, pcoords=pcoords,
-                                                rng=rng, lengths=lengths, **kwargs)
+        shp = self.shape_function_values(pcoords, rng=rng, lengths=lengths)
+        gdshp = self.shape_function_derivatives(pcoords, *args, rng=rng,
+                                                lengths=lengths, **kwargs)
         return shape_function_matrix_bulk(shp, gdshp).astype(float)
 
     def integrate_body_loads(self, values: ndarray) -> ndarray:
@@ -88,9 +87,9 @@ class BernoulliBase(BernoulliBeam, FiniteElement):
         qpos, qweights = self.quadrature['full']
         rng = np.array([-1., 1.])
         shp = self.shape_function_values(
-            pcoords=qpos, rng=rng)  # (nE, nP, nNE=2, nDOF=6)
+            qpos, rng=rng)  # (nE, nP, nNE=2, nDOF=6)
         dshp = self.shape_function_derivatives(
-            pcoords=qpos, rng=rng)  # (nE, nP, nNE=2, nDOF=6, 3)
+            qpos, rng=rng)  # (nE, nP, nNE=2, nDOF=6, 3)
         ecoords = self.local_coordinates()
         jac = self.jacobian_matrix(
             dshp=dshp, ecoords=ecoords)  # (nE, nP, 1, 1)
@@ -100,7 +99,7 @@ class BernoulliBase(BernoulliBeam, FiniteElement):
         return body_load_vector_bulk(values, shp, gdshp, djac, qweights).astype(float)
 
     def _postproc_local_internal_forces(self, values: np.ndarray, *args,
-                                       rng, points, cells, dofsol, **kwargs):
+                                        rng, points, cells, dofsol, **kwargs):
         """
         Documentation is at the base element at '...solid\\fem\\elem.py'
         values (nE, nP, 4, nRHS)

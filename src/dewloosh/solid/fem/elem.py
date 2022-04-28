@@ -2,7 +2,7 @@
 from scipy.sparse import coo_matrix
 import numpy as np
 from collections import namedtuple, Iterable
-from typing import Callable
+from typing import Callable, Iterable
 
 from dewloosh.core import squeeze, config
 
@@ -388,7 +388,7 @@ class FiniteElement:
                 return {}
         else:
             cells = np.s_[:]
-        if isinstance(points, np.ndarray):
+        if isinstance(points, Iterable):
             nP = len(points)
             return explode_kinetic_strains(sloads[cells], nP)
         else:
@@ -478,6 +478,8 @@ class FiniteElement:
             points = np.array(self.lcoords()).flatten()
             rng = [-1, 1]
         else:
+            if isinstance(points, Iterable):
+                points = np.array(points)
             rng = np.array([0, 1]) if rng is None else np.array(rng)
 
         # approximate at points
@@ -493,7 +495,7 @@ class FiniteElement:
 
         dofsol = ascont(np.swapaxes(dofsol, 1, 2))  # (nE, nRHS, nEVAB)
         strains = approx_element_solution_bulk(dofsol, B)  # (nE, nRHS, nP, 4)
-        strains -= self.kinetic_strains(points=points)[cells]
+        strains -= self.kinetic_strains(points=points, squeeze=False)[cells]
         D = self.model_stiffness_matrix()[cells]
         forces = calculate_internal_forces_bulk(
             strains, D)  # (nE, nRHS, nP, 4)

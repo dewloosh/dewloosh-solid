@@ -42,6 +42,10 @@ def calculate_internal_forces_bulk(strains: ndarray, D: ndarray):
 
 @njit(nogil=True, parallel=True, cache=__cache)
 def explode_kinetic_strains(kstrains: ndarray, nP: int):
+    """
+    ---
+    (nE, nRHS, nP, nSTRE)
+    """
     nE, nSTRE, nRHS = kstrains.shape
     res = np.zeros((nE, nRHS, nP, nSTRE), dtype=kstrains.dtype)
     for i in prange(nE):
