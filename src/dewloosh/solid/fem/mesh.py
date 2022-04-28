@@ -15,14 +15,17 @@ class FemMesh(PolyData):
     NDOFN = 3
 
     def __init__(self, *args,  model=None, fixity=None, activity=None,
-                 loads=None, body_loads=None, t=None, **kwargs):
+                 loads=None, body_loads=None, strain_loads=None, t=None,
+                 **kwargs):
         # parent class handles pointdata and celldata creation
         super().__init__(*args, **kwargs)
         self.__smoothed__ = False
 
         # initialize activity information, default is active (True)
         if self.celldata is not None:
-            nE = len(self.celldata)
+            topo = self.celldata.nodes.to_numpy()
+            nE, nNE = topo.shape
+
             if activity is None:
                 activity = np.ones(nE, dtype=bool)
             else:
@@ -30,18 +33,23 @@ class FemMesh(PolyData):
                     "'activity' must be a 1d boolean numpy array!"
             self.celldata._wrapped['active'] = activity
 
+            # body loads
             if body_loads is None:
-                body_loads = np.zeros((len(self.celldata), self.celldata.NNODE,
-                                       self.celldata.NDOFN, 1))
+                body_loads = np.zeros((nE, nNE, self.celldata.NDOFN, 1))
             assert isinstance(body_loads, np.ndarray)
-            topo = self.celldata.nodes.to_numpy()
-            nE, nNE = topo.shape
             if body_loads.shape[0] == nE and body_loads.shape[1] == nNE:
                 self.celldata._wrapped['loads'] = body_loads
             elif body_loads.shape[0] == nE and body_loads.shape[1] == nNE * self.NDOFN:
-                loads = atleastnd(loads, 3, back=True)
-                self.celldata._wrapped['loads'] = loads.reshape(
+                body_loads = atleastnd(body_loads, 3, back=True)
+                self.celldata._wrapped['loads'] = body_loads.reshape(
                     nE, nNE, self.NDOFN, body_loads.shape[-1])
+
+            # strain loads
+            if strain_loads is None:
+                strain_loads = np.zeros((nE, self.celldata.NDOFN, 1))
+            assert isinstance(strain_loads, np.ndarray)
+            assert strain_loads.shape[0] == nE
+            self.celldata._wrapped['strain-loads'] = strain_loads
 
             if self.celldata.NDIM == 2:
                 if t is None:
@@ -85,7 +93,7 @@ class FemMesh(PolyData):
 
         # material model
         self._model = model
-        
+
     def cells_coords(self, *args, points=None, cells=None, **kwargs):
         if points is None and cells is None:
             return super().cells_coords(*args, **kwargs)
@@ -152,15 +160,19 @@ class FemMesh(PolyData):
 
     @squeeze(True)
     def load_vector(self, *args, **kwargs):
-        # pointdata
+        # concentrated nodal loads
         nodal_data = self.root().pointdata.loads.to_numpy()
         nodal_data = atleast3d(nodal_data, back=True)  # (nP, nDOF, nRHS)
         f_p = fem_load_vector(values=nodal_data, squeeze=False)
-        # celldata
-        blocks = self.cellblocks(inclusive=True)
+        # cells
+        blocks = list(self.cellblocks(inclusive=True))
+        # body loads
         def foo(b): return b.celldata.body_load_vector(squeeze=False)
         f_c = np.sum(list(map(foo, blocks)), axis=0)
-        return f_p + f_c
+        # strain loads
+        def foo(b): return b.celldata.strain_load_vector(squeeze=False)
+        f_s = np.sum(list(map(foo, blocks)), axis=0)
+        return f_p + f_c + f_s
 
     def prostproc_dof_solution(self, *args, **kwargs):
         blocks = self.cellblocks(inclusive=True)
@@ -181,7 +193,7 @@ class FemMesh(PolyData):
             return dofsol
 
     @squeeze(True)
-    def cell_dof_solution(self, *args, cells=None, flatten=True, 
+    def cell_dof_solution(self, *args, cells=None, flatten=True,
                           squeeze=True, **kwargs):
         blocks = self.cellblocks(inclusive=True)
         kwargs.update(flatten=flatten, squeeze=False)
@@ -194,7 +206,7 @@ class FemMesh(PolyData):
         else:
             def foo(b): return b.celldata.dof_solution(*args, **kwargs)
             return np.vstack(list(map(foo, blocks)))
-        
+
     @squeeze(True)
     def strains(self, *args, cells=None, squeeze=True, **kwargs):
         blocks = self.cellblocks(inclusive=True)
@@ -208,7 +220,7 @@ class FemMesh(PolyData):
         else:
             def foo(b): return b.celldata.strains(*args, **kwargs)
             return np.vstack(list(map(foo, blocks)))
-        
+
     @squeeze(True)
     def internal_forces(self, *args, cells=None, flatten=True, squeeze=True, **kwargs):
         blocks = self.cellblocks(inclusive=True)
@@ -218,7 +230,7 @@ class FemMesh(PolyData):
             res = {}
             def foo(b): return b.celldata.internal_forces(*args, **kwargs)
             [res.update(d) for d in map(foo, blocks)]
-            return res 
+            return res
         else:
             def foo(b): return b.celldata.internal_forces(*args, **kwargs)
             return np.vstack(list(map(foo, blocks)))

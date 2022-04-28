@@ -335,6 +335,36 @@ def stiffness_matrix_bulk(C: np.ndarray, ecoords: np.ndarray,
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
+def strain_displacement_matrix_bulk2(B: ndarray, djac: ndarray, w: ndarray):
+    nE, nG, nSTRE, nTOTV = B.shape
+    res = np.zeros((nE, nSTRE, nTOTV), dtype=B.dtype)
+    for iG in range(nG):
+        for iE in prange(nE):
+            res[iE] += B[iE, iG] * djac[iE, iG] * w[iG]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def unit_strain_load_vector_bulk(D: ndarray, B: ndarray):
+    nE, nSTRE, nTOTV = B.shape
+    res = np.zeros((nE, nTOTV, nSTRE), dtype=D.dtype)
+    for iE in prange(nE):
+        res[iE] = B[iE].T @ D[iE]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def strain_load_vector_bulk(BTD: ndarray, strains: ndarray):
+    nE, nTOTV, nSTRE = BTD.shape
+    nE, nRHS, nSTRE = strains.shape
+    res = np.zeros((nE, nTOTV, nRHS), dtype=BTD.dtype)
+    for iE in prange(nE):
+        for iRHS in prange(nRHS):
+            res[iE, :, iRHS] = BTD[iE] @ strains[iE, iRHS, :]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
 def stiffness_matrix_bulk2(D: ndarray, B: ndarray, djac: ndarray, w: ndarray):
     nE, nG = djac.shape
     nTOTV = B.shape[-1]

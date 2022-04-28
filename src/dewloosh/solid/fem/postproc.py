@@ -38,3 +38,15 @@ def calculate_internal_forces_bulk(strains: ndarray, D: ndarray):
             for k in prange(nP):
                 res[i, j, k] = D[i] @ strains[i, j, k]
     return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def explode_kinetic_strains(kstrains: ndarray, nP: int):
+    nE, nSTRE, nRHS = kstrains.shape
+    res = np.zeros((nE, nRHS, nP, nSTRE), dtype=kstrains.dtype)
+    for i in prange(nE):
+        for j in prange(nRHS):
+            for k in prange(nP):
+                for m in prange(nSTRE):
+                    res[i, j, k, m] = kstrains[i, m, j]
+    return res

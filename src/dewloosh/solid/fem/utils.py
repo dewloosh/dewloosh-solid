@@ -511,3 +511,5 @@ def internal_forces(K: ndarray, dofsol: ndarray):
         for j in prange(nRHS):
             res[i, j] = K[i] @ dofsol[i, j]
     return res
+
+
