@@ -34,11 +34,11 @@ def loc_to_glob(pcoord: np.ndarray, gcoords: np.ndarray, shpfnc: Callable):
         2D array containing coordinates for every node of a single element.
             nNE : number of vertices of the element
             nD : number of dimensions of the model space
-            
+
     pcoords : (nDP, ) ndarray
         1D array of parametric coordinates for a single point.
             nDP : number of dimensions of the parametric space
-            
+
     shpfnc : Callable
         A function that evaluates shape function values at a point,
         specified with parametric coordinates.
@@ -70,12 +70,12 @@ def loc_to_glob_bulk(pcoords: np.ndarray, gcoords: np.ndarray,
             nE : number of elements
             nNE : number of vertices of the element
             nD : number of dimensions of the model space
-            
+
     pcoords : (nP, nDP) ndarray
         2D array of parametric coordinates for several points.
             nP : number of points
             nDP : number of dimensions of the parametric space
-            
+
     shpfnc : Callable
         A function that evaluates shape function values at a point,
         specified with parametric coordinates.
@@ -120,16 +120,16 @@ def glob_to_loc(coord: np.ndarray, gcoords: np.ndarray, lcoords: np.ndarray,
         2D array containing coordinates for every node of a single element.
             nNE : number of vertices of the element
             nD : number of dimensions of the model space
-            
+
     coord : (nD, ) ndarray
         1D array of global coordinates for a single point.
             nD : number of dimensions of the model space
-            
+
     lcoords : (nNE, nDP) ndarray
         2D array of local coordinates of the parametric element.
             nNE : number of vertices of the element
             nDP : number of dimensions of the parametric space
-            
+
     monomsfnc : Callable
         A function that evaluates monomials of the shape functions at a point
         specified with parametric coordinates.
@@ -170,17 +170,17 @@ def glob_to_loc_bulk(coords: np.ndarray, gcoords: np.ndarray,
             nE : number of elements
             nNE : number of vertices of the element
             nD : number of dimensions of the model space
-            
+
     coords : (nP, nD) ndarray
         2D array of global coordinates for several points.
             nP : number of points
             nD : number of dimensions of the model space
-            
+
     lcoords : (nNE, nDP) ndarray
         2D array of local coordinates of the parametric element.
             nNE : number of vertices of the element
             nDP : number of dimensions of the parametric space
-            
+
     monomsfnc : Callable
         A function that evaluates monomials of the shape functions at a point
         specified with parametric coordinates.
@@ -229,20 +229,20 @@ def pip(coord: np.ndarray, gcoords: np.ndarray, lcoords: np.ndarray,
         2D array containing coordinates for every node of a single element.
             nNE : number of vertices of the element
             nD : number of dimensions of the model space
-            
+
     coord : (nD, ) ndarray
         1D array of global coordinates for a single point.
             nD : number of dimensions of the model space
-            
+
     lcoords : (nNE, nDP) ndarray
         2D array of local coordinates of the parametric element.
             nNE : number of vertices of the element
             nDP : number of dimensions of the parametric space
-            
+
     monomsfnc : Callable
         A function that evaluates monomials of the shape functions at a point
         specified with parametric coordinates.
-        
+
     shpfnc : Callable
         A function that evaluates shape function values at a point,
         specified with parametric coordinates.
@@ -372,6 +372,49 @@ def stiffness_matrix_bulk2(D: ndarray, B: ndarray, djac: ndarray, w: ndarray):
     for iG in range(nG):
         for iE in prange(nE):
             res[iE] += B[iE, iG].T @ D[iE] @ B[iE, iG] * djac[iE, iG] * w[iG]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def mass_matrix_bulk(N: ndarray, dens: ndarray, weights: ndarray,
+                     djac: ndarray, w: ndarray):
+    """
+    Evaluates the mass matrix of several elements from evaluations at the
+    Gauss points of the elements. The densities are assumed to be constant
+    over the elements, and be represented by the 1d float numpy array 'dens'.
+
+    Parameters
+    ----------
+    N : 4d numpy float array
+        Evaluations of the shape function matrix according to the type of 
+        the element for every cell and Gauss point.
+
+    dens : 1d numpy float array
+        1d float array of densities of several elements.
+
+    weights : 1d numpy float array
+        Array of weighting factors for the cells (eg. areas, volumes) with 
+        the same shape as 'dens'. 
+
+    w : 1d numpy float array
+        Weights of the Gauss points
+
+    djac : 2d numpy float array
+        Jacobi determinants for every element and Gauss point.
+
+    nE : number of elements
+    nG : number of Gauss points
+    nNE : number of nodes per element
+    nDOF : number of dofs per node
+
+    """
+    nE, nG = djac.shape
+    nTOTV = N.shape[-1]
+    res = np.zeros((nE, nTOTV, nTOTV), dtype=N.dtype)
+    for iG in range(nG):
+        for iE in prange(nE):
+            res[iE] += dens[iE] * weights[iE] * \
+                N[iE, iG].T @ N[iE, iG] * djac[iE, iG] * w[iG]
     return res
 
 

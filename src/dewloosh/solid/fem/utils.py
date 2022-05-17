@@ -108,8 +108,8 @@ def weighted_stiffness_bulk(K: np.ndarray, weights: np.ndarray):
 
     Notes
     -----
-    (1) It is assumed that the firs axis of K runs
-        along finite elements.
+    (1) It is assumed that the first axis of K runs
+        along the elements.
 
     """
     nE = len(weights)
@@ -499,6 +499,25 @@ def transform_stiffness(K: ndarray, dcm: ndarray):
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
+def reduce_stiffness_bulk(K: ndarray, factors: ndarray):
+    for iE in prange(K.shape[0]):
+        for jV in prange(K.shape[-1]):
+            a = K[iE, jV, jV]
+            K[iE, jV, :] *= factors[iE, jV]
+            K[iE, :, jV] *= factors[iE, jV]
+            K[iE, jV, jV] = a * factors[iE, jV]
+    return K
+
+
+def assert_min_stiffness_bulk(K: ndarray, minval = 1e-12):
+    inds = np.arange(K.shape[-1])
+    d = K[:, inds, inds]
+    eid, vid = np.where(d < minval)
+    K[eid, vid, vid] = minval
+    return K
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
 def internal_forces(K: ndarray, dofsol: ndarray):
     """
     Transforms element stiffness matrices from local to global.
@@ -513,3 +532,10 @@ def internal_forces(K: ndarray, dofsol: ndarray):
     return res
 
 
+@njit(nogil=True, parallel=True, cache=__cache)
+def nodal_mass_matrix_data(nodal_masses: ndarray, ndof:int=6):
+    N = nodal_masses.shape[0]
+    res = np.zeros((N*ndof))
+    for i in prange(N):
+        res[i*ndof : i*ndof + 3] = nodal_masses[i]
+    return res

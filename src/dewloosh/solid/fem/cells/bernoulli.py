@@ -4,6 +4,8 @@ from numpy import ndarray
 from collections import Iterable
 from typing import Union, Callable
 
+from dewloosh.core import squeeze, is_none_or_false
+
 from dewloosh.math.array import atleast1d, atleastnd, ascont
 from dewloosh.math.utils import to_range
 
@@ -11,6 +13,8 @@ from ..elem import FiniteElement
 from ..model.beam import BernoulliBeam, calculate_shear_forces
 from .utils.bernoulli import shape_function_matrix_bulk, body_load_vector_bulk
 from .utils.bernoulli import global_shape_function_derivatives_bulk as gdshpB
+from .utils.bernoulli import lumped_mass_matrices_direct as dlump
+
 
 __all__ = ['BernoulliBase']
 
@@ -69,7 +73,7 @@ class BernoulliBase(BernoulliBeam, FiniteElement):
         """
         pcoords = atleast1d(np.array(pcoords) if isinstance(
             pcoords, list) else pcoords)
-        rng = np.array([-1, 1]) if rng is None else np.array(rng)
+        rng = np.array([-1., 1.]) if rng is None else np.array(rng)
         lengths = self.lengths() if lengths is None else lengths
         shp = self.shape_function_values(pcoords, rng=rng, lengths=lengths)
         gdshp = self.shape_function_derivatives(pcoords, *args, rng=rng,
@@ -78,6 +82,7 @@ class BernoulliBase(BernoulliBeam, FiniteElement):
 
     def integrate_body_loads(self, values: ndarray) -> ndarray:
         """
+        ---
         values (nE, nNE * nDOF, nRHS)
         """
         values = atleastnd(values, 3, back=True)
@@ -119,3 +124,33 @@ class BernoulliBase(BernoulliBeam, FiniteElement):
         D = self.model_stiffness_matrix()[cells]
         values = calculate_shear_forces(dofsol, values, D, gdshp)
         return values  # (nE, nP, 6, nRHS)
+
+    @squeeze(True)
+    def mass_matrix(self, *args, lumping=None, alpha: float = 1/50,
+                    frmt='full', **kwargs):
+        """
+        lumping : 'direct', None or False
+        frmt : only if lumping is specified
+        """
+        if is_none_or_false(lumping):
+            return super().mass_matrix(*args, squeeze=False, **kwargs)
+        if lumping == 'direct':
+            dens = self.db.densities.to_numpy()
+            try:
+                areas = self.areas()
+            except Exception:
+                areas = np.ones_like(dens)
+            lengths = self.lengths()
+            topo = self.db.nodes.to_numpy()
+            ediags = dlump(dens, lengths, areas, topo, alpha)
+            if frmt == 'full':
+                N = ediags.shape[-1]
+                M = np.zeros((ediags.shape[0], N, N))
+                inds = np.arange(N)
+                M[:, inds, inds] = ediags
+                self.db['M'] = M
+                return M
+            elif frmt == 'diag':
+                self.db['M'] = ediags
+                return ediags
+        raise RuntimeError("Lumping mode not recognized :(")

@@ -6,7 +6,7 @@ from typing import Callable, Iterable
 
 from dewloosh.core import squeeze, config
 
-from dewloosh.math.linalg import ReferenceFrame, Vector
+from dewloosh.math.linalg import ReferenceFrame
 from dewloosh.math.array import atleast1d, atleastnd, ascont
 from dewloosh.math.utils import to_range
 
@@ -17,12 +17,12 @@ from .preproc import fem_coeff_matrix_coo
 from .postproc import approx_element_solution_bulk, calculate_internal_forces_bulk, \
     explode_kinetic_strains
 from .cells.utils import stiffness_matrix_bulk2, strain_displacement_matrix_bulk2, \
-    unit_strain_load_vector_bulk, strain_load_vector_bulk
+    unit_strain_load_vector_bulk, strain_load_vector_bulk, mass_matrix_bulk
 from .utils import topo_to_gnum, approximation_matrix, nodal_approximation_matrix, \
     nodal_compatibility_factors, compatibility_factors_to_coo, \
     compatibility_factors, penalty_factor_matrix, assemble_load_vector
 from .utils import tr_cells_1d_in_multi, tr_cells_1d_out_multi, element_dof_solution_bulk, \
-    transform_stiffness
+    transform_stiffness, reduce_stiffness_bulk, assert_min_stiffness_bulk
 
 
 Quadrature = namedtuple('QuadratureRule', ['inds', 'pos', 'weight'])
@@ -34,6 +34,10 @@ ulabels = {UX: 'UX', UY: 'UY', UZ: 'UZ',
 flabels = {FX: 'FX', FY: 'FY', FZ: 'FZ', MX: 'MX', MY: 'MY', MZ: 'MZ'}
 ulabel_to_int = {v: k for k, v in ulabels.items()}
 flabel_to_int = {v: k for k, v in flabels.items()}
+
+fem_db_glossary = {
+    'density': 'densities'
+}
 
 
 def integrate(fnc: Callable, quadrature, qrule, *args, qkey='gauss', **kwargs):
@@ -84,6 +88,10 @@ class FiniteElement:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+    @property
+    def db(self):
+        return self._wrapped
 
     # !TODO : this should be implemented at geometry
     @classmethod
@@ -138,7 +146,11 @@ class FiniteElement:
     def direction_cosine_matrix(self):
         return None
 
-    def transform_stiffness_matrix(self, K, *args, **kwargs):
+    def transform_coeff_matrix(self, K, *args, **kwargs):
+        """
+        Transforms element coefficient matrices (eg. the stiffness or the 
+        mass matrix) from local to global.
+        """
         dcm = self.direction_cosine_matrix()
         return K if dcm is None else transform_stiffness(K, dcm)
 
@@ -369,9 +381,9 @@ class FiniteElement:
         numpy array of shape (nE, nSTRE, nRHS)
         """
         try:
-            sloads = self._wrapped['strain-loads'].to_numpy()
+            sloads = self.db['strain-loads'].to_numpy()
         except Exception as e:
-            if 'strain-loads' not in self._wrapped.fields:
+            if 'strain-loads' not in self.db.fields:
                 nE = len(self)
                 nRHS = self.pointdata.loads.to_numpy().shape[-1]
                 nSTRE = self.__class__.NSTRE
@@ -410,7 +422,7 @@ class FiniteElement:
             4d float array of internal forces for many elements, evaluation points,
             and load cases. The number of force components (nSTRE) is dictated by the
             reduced kinematical model (eg. 4 for the Bernoulli beam).
-            
+
         dofsol (nE, nEVAB, nRHS)
 
         Returns
@@ -551,12 +563,12 @@ class FiniteElement:
     def distribute_nodal_data(self, data, key):
         topo = self.nodes.to_numpy()
         ndf = self.ndf.to_numpy()
-        self._wrapped[key] = distribute_nodal_data(data, topo, ndf)
+        self.db[key] = distribute_nodal_data(data, topo, ndf)
 
     def collect_nodal_data(self, key, *args, N=None, **kwargs):
         topo = self.nodes.to_numpy()
         N = len(self.pointdata) if N is None else N
-        cellloads = self._wrapped[key].to_numpy()
+        cellloads = self.db[key].to_numpy()
         return collect_nodal_data(cellloads, topo, N)
 
     def compatibility_penalty_matrix_coo(self, *args, nam_csr_tot, p=1e12, **kwargs):
@@ -591,17 +603,31 @@ class FiniteElement:
 
     @squeeze(True)
     def stiffness_matrix(self, *args, **kwargs):
-        return self.stiffness_matrix_v2(*args, **kwargs)
+        K = self.stiffness_matrix_v2(*args, **kwargs)
+        if 'conn' in self.db.fields:
+            # only for line meshes at the moment
+            conn = self.db.conn.to_numpy()
+            if len(conn.shape) == 3 and conn.shape[1] == 2:  # nE, 2, nDOF
+                nE, _, nDOF = conn.shape
+                #conn = np.reshape(conn, (nE, 2*nDOF))
+                factors = np.ones((nE, K.shape[-1]))
+                factors[:, :nDOF] = conn[:, 0, :]
+                factors[:, -nDOF:] = conn[:, 1, :]
+                reduce_stiffness_bulk(K, factors)
+                assert_min_stiffness_bulk(K)
+            else:
+                raise NotImplementedError(
+                    "Unknown shape of <{}> for 'connectivity'.".format(conn.shape))
+        return K
 
     @config(store_strains=False)
     def stiffness_matrix_v1(self, *args, **kwargs):
-        _topo = kwargs.get('_topo', self.nodes.to_numpy())
+        _topo = kwargs.get('_topo', self.db.nodes.to_numpy())
         if 'frames' not in kwargs:
-            if 'frames' in self._wrapped.fields:
-                frames = self._wrapped.frames.to_numpy()
+            if 'frames' in self.db.fields:
+                frames = self.db.frames.to_numpy()
             else:
                 frames = None
-
         _ecoords = kwargs.get('_ecoords', None)
         if _ecoords is None:
             if frames is not None:
@@ -623,21 +649,21 @@ class FiniteElement:
                     else:
                         qpos, qweight = qvalue
                     q = Quadrature(qinds, qpos, qweight)
-                    res[:, :, :] += self.stiffness_matrix(*args, _topo=_topo,
-                                                          frames=frames, _q=q,
-                                                          _ecoords=_ecoords,
-                                                          **kwargs)
+                    res[:, :, :] += self.stiffness_matrix_v1(*args, _topo=_topo,
+                                                             frames=frames, _q=q,
+                                                             _ecoords=_ecoords,
+                                                             **kwargs)
             else:
                 # one side loop
                 qpos, qweight = self.quadrature[self.qrule]
                 q = Quadrature(None, qpos, qweight)
-                res = self.stiffness_matrix(*args, _topo=_topo,
-                                            frames=frames, _q=q,
-                                            _ecoords=_ecoords,
-                                            **kwargs)
+                res = self.stiffness_matrix_v1(*args, _topo=_topo,
+                                               frames=frames, _q=q,
+                                               _ecoords=_ecoords,
+                                               **kwargs)
             # end of main cycle
-            self._wrapped['K'] = res
-            return self.transform_stiffness_matrix(res)
+            self.db['K'] = res
+            return self.transform_coeff_matrix(res)
 
         # in side loop
         dshp = self.shape_function_derivatives(q.pos)
@@ -657,13 +683,14 @@ class FiniteElement:
 
     @config(store_strains=True)
     def stiffness_matrix_v2(self, *args, **kwargs):
-
         nSTRE = self.__class__.NSTRE
         nDOF = self.__class__.NDOFN
         nNE = self.__class__.NNODE
         nE = len(self)
+        _gauss_strains_ = None
 
         def _stiffness_matrix_(*args, gauss, ecoords, D, **kwargs):
+            nonlocal _gauss_strains_
             dshp = self.shape_function_derivatives(gauss.pos)
             jac = self.jacobian_matrix(dshp=dshp, ecoords=ecoords)
             B = self.strain_displacement_matrix(dshp=dshp, jac=jac)
@@ -681,26 +708,26 @@ class FiniteElement:
                 else:
                     qinds = gauss.inds
                 self._gauss_strains_[qinds] = _B"""
-                self._gauss_strains_ += _B
+                _gauss_strains_ += _B
             return stiffness_matrix_bulk2(D, B, djac, gauss.weight)
 
         if kwargs.get('store_strains', False):
-            #self._gauss_strains_ = {}
-            self._gauss_strains_ = np.zeros((nE, nSTRE, nDOF * nNE))
+            #_gauss_strains_ = {}
+            _gauss_strains_ = np.zeros((nE, nSTRE, nDOF * nNE))
 
         Hooke = self.model_stiffness_matrix()
         topo = self.nodes.to_numpy()
-        frames = self._wrapped.frames.to_numpy()
+        frames = self.db.frames.to_numpy()
         ecoords = self.local_coordinates(_topo=topo, frames=frames)
         kwargs['ecoords'] = ecoords
         kwargs['D'] = Hooke
         K = integrate(_stiffness_matrix_, self.quadrature,
                       self.qrule, *args, qkey='gauss', **kwargs)
-        self._wrapped['K'] = K
+        self.db['K'] = K
         if kwargs.get('store_strains', False):
-            self._wrapped['B'] = self._gauss_strains_
+            self.db['B'] = _gauss_strains_
 
-        return self.transform_stiffness_matrix(K)
+        return self.transform_coeff_matrix(K)
 
     def stiffness_matrix_coo(self, *args, **kwargs):
         nP = len(self.pointdata)
@@ -711,14 +738,90 @@ class FiniteElement:
         return fem_coeff_matrix_coo(K_bulk, *args, inds=gnum, N=N, **kwargs)
 
     @squeeze(True)
+    def mass_matrix(self, *args, **kwargs):
+        return self.mass_matrix_v1(*args, **kwargs)
+    
+    def mass_matrix_v1(self, *args, values=None, **kwargs):
+        _topo = kwargs.get('_topo', self.db.nodes.to_numpy())
+        if 'frames' not in kwargs:
+            if 'frames' in self.db.fields:
+                frames = self.db.frames.to_numpy()
+            else:
+                frames = None
+        _ecoords = kwargs.get('_ecoords', None)
+        if _ecoords is None:
+            if frames is not None:
+                _ecoords = self.local_coordinates(_topo=_topo, frames=frames)
+            else:
+                _ecoords = self.points_of_cells(topo=_topo)
+        if isinstance(values, np.ndarray):
+            _dens = values
+        else:
+            _dens = kwargs.get('_dens', self.db.densities.to_numpy())
+
+        try:
+            _areas = self.areas()
+        except Exception:
+            _areas = np.ones_like(_dens)
+
+        """if 'areas' in self.db.fields:
+            _areas = kwargs.get('_areas', self.db.areas.to_numpy())
+        else:
+            _areas = np.ones_like(_dens)"""
+
+        q = kwargs.get('_q', None)
+        if q is None:
+            q = self.quadrature['mass']
+            if isinstance(q, dict):
+                N = self.NNODE * self.NDOFN
+                nE = len(self)
+                res = np.zeros((nE, N, N))
+                for qinds, qvalue in q.items():
+                    if isinstance(qvalue, str):
+                        qpos, qweight = self.quadrature[qvalue]
+                    else:
+                        qpos, qweight = qvalue
+                    q = Quadrature(qinds, qpos, qweight)
+                    res += self.mass_matrix_v1(*args, _topo=_topo,
+                                               frames=frames, _q=q,
+                                               values=_dens,
+                                               _ecoords=_ecoords,
+                                               **kwargs)
+            else:
+                qpos, qweight = self.quadrature['mass']
+                q = Quadrature(None, qpos, qweight)
+                res = self.mass_matrix_v1(*args, _topo=_topo,
+                                          frames=frames, _q=q,
+                                          values=_dens,
+                                          _ecoords=_ecoords,
+                                          **kwargs)
+            self.db['M'] = res
+            return self.transform_coeff_matrix(res)
+
+        rng = np.array([-1., 1.])
+        dshp = self.shape_function_derivatives(q.pos)
+        jac = self.jacobian_matrix(dshp=dshp, ecoords=_ecoords)
+        djac = self.jacobian(jac=jac)
+        N = self.shape_function_matrix(q.pos, rng=rng)
+        return mass_matrix_bulk(N, _dens, _areas, djac, q.weight)
+
+    def mass_matrix_coo(self, *args, **kwargs):
+        nP = len(self.pointdata)
+        N = nP * self.NDOFN
+        topo = self.db.nodes.to_numpy()
+        M_bulk = self.mass_matrix(*args, **kwargs)
+        gnum = self.global_dof_numbering(topo=topo)
+        return fem_coeff_matrix_coo(M_bulk, *args, inds=gnum, N=N, **kwargs)
+
+    @squeeze(True)
     def strain_load_vector(self, values=None, *args, squeeze, **kwargs):
         nRHS = self.pointdata.loads.to_numpy().shape[-1]
         nSTRE = self.__class__.NSTRE
         try:
             if values is None:
-                values = self._wrapped['strain-loads'].to_numpy()
+                values = self.db['strain-loads'].to_numpy()
         except Exception as e:
-            if 'strain-loads' not in self._wrapped.fields:
+            if 'strain-loads' not in self.db.fields:
                 nE = len(self)
                 values = np.zeros((nE, nSTRE, nRHS))
             else:
@@ -726,10 +829,10 @@ class FiniteElement:
         finally:
             values = atleastnd(values, 3, back=True)  # (nE, nSTRE=4, nRHS)
 
-        if 'B' not in self._wrapped.fields:
+        if 'B' not in self.db.fields:
             self.stiffness_matrix(*args, squeeze=False,
                                   store_strains=True, **kwargs)
-        B = self._wrapped['B'].to_numpy()  # (nE, nSTRE=4, nNODE * nDOF=6)
+        B = self.db['B'].to_numpy()  # (nE, nSTRE=4, nNODE * nDOF=6)
         D = self.model_stiffness_matrix()  # (nE, nSTRE=4, nSTRE=4)
         BTD = unit_strain_load_vector_bulk(D, B)
         values = np.swapaxes(values, 1, 2)  # (nE, nRHS, nSTRE=4)
@@ -775,7 +878,7 @@ class FiniteElement:
         return transform_local_nodal_loads(self, nodal_loads)
 
 
-def transform_local_nodal_loads(obj, nodal_loads):
+def transform_local_nodal_loads(obj: FiniteElement, nodal_loads):
     """
     nodal_loads (nE, nNE * nDOF, nRHS) == (nE, nX, nRHS)
     ---
@@ -789,7 +892,7 @@ def transform_local_nodal_loads(obj, nodal_loads):
     # (nE, nRHS, nNE * nDOF) -> (nE, nNE * nDOF, nRHS)
     nodal_loads = np.swapaxes(nodal_loads, 1, 2)
     # assemble
-    topo = obj.nodes.to_numpy()
+    topo = obj.db.nodes.to_numpy()
     gnum = obj.global_dof_numbering(topo=topo)
     nX = len(obj.pointdata) * obj.__class__.NDOFN
     return assemble_load_vector(nodal_loads, gnum, nX)  # (nX, nRHS)

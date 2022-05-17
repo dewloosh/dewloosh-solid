@@ -9,7 +9,7 @@ from dewloosh.math.array import isintegerarray, isfloatarray, \
     isboolarray, bool_to_float, atleastnd
 from dewloosh.math.linalg.sparse.utils import lower_spdata, upper_spdata
 
-from .utils import nodes2d_to_dofs1d, irows_icols_bulk
+from .utils import nodes2d_to_dofs1d, irows_icols_bulk, nodal_mass_matrix_data
 
 
 def fem_coeff_matrix_coo(A: ndarray, *args, inds: ndarray = None,
@@ -201,7 +201,7 @@ def build_fem_ebc_data(*args, inds: ndarray = None, values: ndarray = None,
     return build_fem_nodal_data(*args, inds=inds, values=values, **kwargs)
 
 
-def fem_penalty_matrix_coo(*args, eliminate_zeros=True, sum_duplicates=True, 
+def fem_penalty_matrix_coo(*args, eliminate_zeros=True, sum_duplicates=True,
                            **kwargs) -> coo_matrix:
     """
     Returns the sparse, COO format penalty matrix, equivalent of 
@@ -224,6 +224,32 @@ def fem_penalty_matrix_coo(*args, eliminate_zeros=True, sum_duplicates=True,
     if sum_duplicates:
         K.sum_duplicates()
     return K
+
+
+def fem_nodal_mass_matrix_coo(*args, values=None, eliminate_zeros=True, 
+                              sum_duplicates=True, ndof=6, **kwargs) -> coo_matrix:
+    """
+    Returns the diagonal mass matrix resulting form nodal masses in scipy COO format.
+
+    Parameters
+    ----------
+        See the documentation of 'build_fem_ebc_data' for the discription
+        of the possible arguments.
+
+    Returns
+    -------
+    scipy.sparse.coo_matrix
+        The mass matrix in sparse COO format.
+    
+    """
+    values = nodal_mass_matrix_data(values, ndof)
+    inds, vals, N = build_fem_nodal_data(*args, values=values, **kwargs)
+    M = coo_matrix((vals[:, 0], (inds, inds)), shape=(N, N))
+    if eliminate_zeros:
+        M.eliminate_zeros()
+    if sum_duplicates:
+        M.sum_duplicates()
+    return M
 
 
 if __name__ == '__main__':

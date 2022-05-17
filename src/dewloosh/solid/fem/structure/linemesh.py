@@ -5,8 +5,6 @@ import numpy as np
 from numpy import ndarray, swapaxes as swap, ascontiguousarray as ascont
 from scipy.interpolate import interp1d
 
-from dewloosh.math.utils import to_range
-
 from dewloosh.geom.config import __haspyvista__, __hasplotly__, __hasmatplotlib__
 
 from ..mesh import FemMesh
@@ -25,8 +23,25 @@ if __haspyvista__:
 
 class LineMesh(FemMesh):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, areas=None, connectivity=None, **kwargs):
         super().__init__(*args, **kwargs)
+        
+        if self.celldata is not None:
+            nE = len(self.celldata)
+            if areas is None:
+                areas = np.ones(nE)
+            else:
+                assert len(areas.shape) == 1, \
+                    "'areas' must be a 1d float or integer numpy array!"
+            self.celldata.db['areas'] = areas
+            
+            if connectivity is not None:
+                if isinstance(connectivity, np.ndarray):
+                    assert len(connectivity.shape) == 3
+                    assert connectivity.shape[0] == nE
+                    assert connectivity.shape[1] == 2
+                    assert connectivity.shape[2] == self.NDOFN
+                    self.celldata.db['conn'] = connectivity
 
     def plot(self, *args, as_tubes=True, radius=0.1, **kwargs):
         if not as_tubes:
@@ -138,6 +153,8 @@ def extrapolate_gauss_data(gpos: ndarray, gdata: ndarray):
 
 
 class BernoulliFrame(LineMesh):
+    
+    NDOFN = 6
     
     """def internal_forces(self, *args, key=None, **kwargs):
         key = 'internal_forces' if key is None else key

@@ -21,7 +21,8 @@ class Bernoulli2(Line, BernoulliBase):
             (0, 1): 'full',
             (2): 'reduced'
         },
-        'reduced': Gauss(1)
+        'reduced': Gauss(1),
+        'mass' : Gauss(4)
     }
     shpfnc = shpB2
     dshpfnc = dshpB2

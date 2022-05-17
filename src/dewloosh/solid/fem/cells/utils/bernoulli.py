@@ -15,19 +15,20 @@ def global_shape_function_derivatives_bulk(dshp: ndarray, jac: ndarray):
     Calculates derivatives of shape functions w.r.t. the global axes
     using derivatives along local axes evaulated at some points in
     the interval [-1, 1], and jacobians of local-to-global mappings.
-    
+
     Parameters
     ----------
     dshp: a NumPy float array of shape (nE, nP, nNE, nDOF=6, 3)
         Derivatives of shape functions evaluated at an 'nP' number of 
         points of an 'nE' number of elements.
-    
+
     jac: a NumPy float array of shape (nE, nP, 1, 1)
         Jacobi determinants, evaluated for each point in each cell.
-        
+
     Returns
     -------
     NumPy array of shape (nE, nP, nNE, nDOF=6, 3)
+
     """
     nE, nP, nNE = dshp.shape[:3]
     res = np.zeros((nE, nP, nNE, __NDOFN__, 3), dtype=dshp.dtype)
@@ -44,15 +45,15 @@ def global_shape_function_derivatives_bulk(dshp: ndarray, jac: ndarray):
 def shape_function_matrix(shp: ndarray, gdshp: ndarray):
     """
     Returns the shape function matrix for a Bernoulli beam.
-    
+
     The input contains evaluations of the shape functions and at lest 
     the first global derivatives of the shape functions. 
-    
+
     shp (nNE, nDOF=6)
     gdshp (nNE, nDOF=6, 3)
     ---
     (nDOF, nDOF * nNODE)
-    
+
     Notes
     -----
     The approximation applies a mixture of Lagrange(L) and Hermite(H) 
@@ -88,13 +89,13 @@ def shape_function_matrix_bulk(shp: ndarray, gdshp: ndarray):
     --
     shp (nE, nP, nNE, nDOF=6)
     gdshp (nE, nP, nNE, nDOF=6, 3)
-    
+
     Out
     ---
     (nE, nP, nDOF, nDOF * nNODE)
     """
     nE, nP, nNE = gdshp.shape[:3]
-    res = np.zeros((nE, nP, __NDOFN__, nNE *__NDOFN__), dtype=gdshp.dtype)
+    res = np.zeros((nE, nP, __NDOFN__, nNE * __NDOFN__), dtype=gdshp.dtype)
     for iE in prange(nE):
         for iP in prange(nP):
             res[iE, iP] = shape_function_matrix(shp[iE, iP], gdshp[iE, iP])
@@ -105,13 +106,13 @@ def shape_function_matrix_bulk(shp: ndarray, gdshp: ndarray):
 def shape_function_matrix_L(shp: ndarray):
     """
     Returns the shape function matrix for a line.
-    
+
     The input contains evaluations of the shape functions. 
-    
+
     In
     --
     shp (nNE, nDOF=6)
-    
+
     Out
     ---
     (nDOF, nDOF * nNODE)
@@ -133,13 +134,13 @@ def shape_function_matrix_L(shp: ndarray):
 def shape_function_matrix_L_multi(shp: ndarray):
     """
     Returns the shape function matrix for a line.
-    
+
     The input contains evaluations of the shape functions. 
-    
+
     In
     --
     shp (nP, nNE, nDOF=6)
-    
+
     Out
     ---
     (nP, nDOF, nDOF * nNODE)
@@ -157,7 +158,7 @@ def body_load_vector_bulk(values: ndarray, shp: ndarray, gdshp: ndarray,
     """
     Input values are assumed to be evaluated at multiple (nG) Gauss points of
     multiple (nE) cells.
-    
+
     values (nE, nRHS, nNE * 6)
     djac (nE, nG)
     shp (nE, nG, nNE=2, nDOF=6)
@@ -173,7 +174,8 @@ def body_load_vector_bulk(values: ndarray, shp: ndarray, gdshp: ndarray,
     for iG in range(nG):
         for iRHS in prange(nRHS):
             for iE in prange(nE):
-                res[iE, :, iRHS] += NH[iE, iG].T @ NL[iG] @ values[iE, iRHS, :] * djac[iE, iG] * w[iG]
+                res[iE, :, iRHS] += NH[iE, iG].T @ NL[iG] @ values[iE,
+                                                                   iRHS, :] * djac[iE, iG] * w[iG]
     return res
 
 
@@ -212,7 +214,7 @@ def calculate_element_forces_bulk(dofsol: ndarray, B: ndarray,
 
 
 @njit(nogil=True, parallel=True, cache=__cache__)
-def interpolate_element_data_bulk(edata: ndarray, N : ndarray):
+def interpolate_element_data_bulk(edata: ndarray, N: ndarray):
     """
     N (nE, nP, nDOF, nDOF * nNODE)  shape function matrix
     edata (nE, nDOF * nNODE)  element data
@@ -223,3 +225,58 @@ def interpolate_element_data_bulk(edata: ndarray, N : ndarray):
         for iP in prange(nP):
             res[iE, iP, :] = N[iE, iP] @ edata[iE]
     return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache__)
+def lumped_mass_matrices_direct(dens: ndarray, lengths: ndarray, areas: ndarray,
+                                topo: ndarray, alpha: float = 1/20) -> ndarray:
+    """
+    Returns the diagonal values of the directly lumped mass matrix for several 
+    Bernoulli beam elements, sharing the total masses equivalently among nodes.
+
+    Implementation is based on the lecture notes of Carlos A. Felippa [1].
+
+    Parameters
+    ----------
+    dens : ndarray
+        1d numpy float array of material densities.
+
+    lengths : ndarray
+        1d numpy float array of element lengths.
+
+    areas : ndarray
+        1d numpy float array of element areas.
+
+    topo : ndarray
+        2d numpy integer array of node indices referencing the global pointcloud.
+
+    alpha : float
+        A nonnegative parameter, typically between 0 and 1/50 (see notes).
+        Default is 1/20.
+
+    Notes
+    -----
+    [1] : "The choice of α has been argued in the FEM literature over several decades, 
+    but the whole discussion is largely futile. Matching the angular momentum of 
+    the beam element gyrating about its midpoint gives α = −1/24. This violates the 
+    positivity condition stated in [1, 32.2.4]. It follows that the best possible 
+    α — as opposed to possible best — is zero. This choice gives, however, a singular 
+    mass matrix, which is undesirable in scenarios where a mass-inverse appears."
+
+    References
+    ----------
+    .. [1] Introduction to Finite Element Methods, Carlos A. Felippa.
+           Department of Aerospace Engineering Sciences and Center for 
+           Aerospace Structures, University of Colorado. 2004.
+
+    """
+    nE, nNE = topo.shape
+    diags = np.zeros((nE, 6 * nNE), dtype=dens.dtype)
+    for iE in prange(nE):
+        li = lengths[iE]
+        vi = li * areas[iE]
+        di = dens[iE]
+        for jNE in prange(nNE):
+            diags[iE, jNE*6: jNE*6 + 3] = di * vi / nNE
+            diags[iE, jNE*6 + 3: jNE*6 + 6] = di * vi * alpha * li**2
+    return diags

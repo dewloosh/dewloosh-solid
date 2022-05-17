@@ -16,7 +16,8 @@ class Bernoulli3(Line, BernoulliBase):
 
     qrule = 'full'
     quadrature = {
-        'full': Gauss(6)
+        'full': Gauss(6),
+        'mass' : Gauss(8)
     }
     shpfnc = shpB3
     dshpfnc = dshpB3
