@@ -1,2 +1,2 @@
-dewloosh.geom==0.0.1-alpha5
+dewloosh.geom
 #pylatex
