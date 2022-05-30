@@ -9,7 +9,6 @@ from dewloosh.core import squeeze, is_none_or_false
 from dewloosh.math.array import atleast1d, atleastnd, ascont
 from dewloosh.math.utils import to_range
 
-from ..elem import FiniteElement
 from ..model.beam import BernoulliBeam, calculate_shear_forces
 from .utils.bernoulli import shape_function_matrix_bulk, body_load_vector_bulk
 from .utils.bernoulli import global_shape_function_derivatives_bulk as gdshpB
@@ -22,7 +21,7 @@ __all__ = ['BernoulliBase']
 ArrayOrFloat = Union[ndarray, float]
 
 
-class BernoulliBase(BernoulliBeam, FiniteElement):
+class BernoulliBase(BernoulliBeam):
 
     qrule: str = None
     quadrature: dict = None

@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
+from abc import abstractmethod
+
 from dewloosh.math.array import atleast2d
 
 from .utils import model_strains, stresses_from_strains
 from ..utils import topo_to_gnum
+from ..meta import FemModel
 
 
-class Solid:
+class Solid(FemModel):
 
     NDOFN = 3
     NSTRE = 6
@@ -22,35 +25,12 @@ class Solid:
     def model_stiffness_matrices(self, *args, **kwargs):
         return self.material_stiffness_matrices()
 
-    def jacobian_matrix(self, *args, **kwargs):
-        raise NotImplementedError
-
-    @classmethod
-    def lcenter(cls, *args,  **kwargs):
-        raise NotImplementedError
-
-    @classmethod
-    def lcoords(cls, *args,  **kwargs):
-        raise NotImplementedError
-
     @classmethod
     def strains_at(cls, *args,  **kwargs):
         raise NotImplementedError
 
     @classmethod
     def HMH(cls, *args,  **kwargs):
-        raise NotImplementedError
-
-    @classmethod
-    def shape_function_derivatives(cls,  *args,  **kwargs):
-        raise NotImplementedError
-
-    @classmethod
-    def strain_displacement_matrix(cls,  *args,  **kwargs):
-        raise NotImplementedError
-
-    @classmethod
-    def strain_displacement_matrix(cls, dshp, jac, *args, **kwargs):
         raise NotImplementedError
 
     @classmethod

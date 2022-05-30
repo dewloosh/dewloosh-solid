@@ -3,16 +3,18 @@ from dewloosh.math.numint import GaussPoints as Gauss
 
 from dewloosh.geom.cells import QuadraticLine as Line
 
-from .bernoulli import BernoulliBase
+from .bernoulli import BernoulliBase as Bernoulli
 
 from .gen.b3 import shape_function_values_bulk as shpB3, \
     shape_function_derivatives_bulk as dshpB3
-
+    
+from ..elem import FiniteElement
+from ..meta import ABCFiniteElement as ABC
 
 __all__ = ['Bernoulli3']
 
 
-class Bernoulli3(Line, BernoulliBase):
+class Bernoulli3(ABC, Bernoulli, Line, FiniteElement):
 
     qrule = 'full'
     quadrature = {

@@ -8,6 +8,8 @@ from scipy.interpolate import interp1d
 from dewloosh.geom.config import __haspyvista__, __hasplotly__, __hasmatplotlib__
 
 from ..mesh import FemMesh
+from ..cells.bernoulli2 import Bernoulli2
+from ..cells.bernoulli3 import Bernoulli3
 
 from .tr import \
     transform_numint_forces_out as tr_cell_gauss_out, \
@@ -22,8 +24,14 @@ if __haspyvista__:
 
 
 class LineMesh(FemMesh):
+    
+    _cell_classes_ = {
+        2: Bernoulli2,
+        3: Bernoulli3,
+    }
 
-    def __init__(self, *args, areas=None, connectivity=None, **kwargs):
+    def __init__(self, *args, areas=None, connectivity=None, **kwargs):          
+                
         super().__init__(*args, **kwargs)
         
         if self.celldata is not None:
@@ -40,9 +48,17 @@ class LineMesh(FemMesh):
                     assert len(connectivity.shape) == 3
                     assert connectivity.shape[0] == nE
                     assert connectivity.shape[1] == 2
-                    assert connectivity.shape[2] == self.NDOFN
+                    assert connectivity.shape[2] == self.__class__.NDOFN
                     self.celldata.db['conn'] = connectivity
-
+    
+    def masses(self, *args, **kwargs):
+        blocks = self.cellblocks(*args, inclusive=True, **kwargs)
+        vmap = map(lambda b: b.celldata.masses(), blocks)
+        return np.concatenate(list(vmap))
+    
+    def mass(self, *args, **kwargs):
+        return np.sum(self.masses(*args, **kwargs))
+               
     def plot(self, *args, as_tubes=True, radius=0.1, **kwargs):
         if not as_tubes:
             return super().plot(*args, **kwargs)

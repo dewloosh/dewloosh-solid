@@ -7,23 +7,25 @@ from typing import Callable, Iterable
 from dewloosh.core import squeeze, config
 
 from dewloosh.math.linalg import ReferenceFrame
-from dewloosh.math.array import atleast1d, atleastnd, ascont
+from dewloosh.math.array import atleast1d, atleastnd, \
+    ascont, isboolarray, is1dfloatarray
 from dewloosh.math.utils import to_range
 
+from dewloosh.geom.celldata import CellData
 from dewloosh.geom.utils import distribute_nodal_data, \
     collect_nodal_data
 
+from .meta import FemMixin
 from .preproc import fem_coeff_matrix_coo
 from .postproc import approx_element_solution_bulk, calculate_internal_forces_bulk, \
     explode_kinetic_strains
-from .cells.utils import stiffness_matrix_bulk2, strain_displacement_matrix_bulk2, \
-    unit_strain_load_vector_bulk, strain_load_vector_bulk, mass_matrix_bulk
 from .utils import topo_to_gnum, approximation_matrix, nodal_approximation_matrix, \
     nodal_compatibility_factors, compatibility_factors_to_coo, \
     compatibility_factors, penalty_factor_matrix, assemble_load_vector
 from .utils import tr_cells_1d_in_multi, tr_cells_1d_out_multi, element_dof_solution_bulk, \
-    transform_stiffness, reduce_stiffness_bulk, assert_min_stiffness_bulk
-
+    transform_stiffness, constrain_local_stiffness_bulk, assert_min_stiffness_bulk
+from .cells.utils import stiffness_matrix_bulk2, strain_displacement_matrix_bulk2, \
+    unit_strain_load_vector_bulk, strain_load_vector_bulk, mass_matrix_bulk
 
 Quadrature = namedtuple('QuadratureRule', ['inds', 'pos', 'weight'])
 
@@ -64,87 +66,74 @@ def integrate(fnc: Callable, quadrature, qrule, *args, qkey='gauss', **kwargs):
     return res
 
 
-class FiniteElement:
+class FiniteElement(CellData, FemMixin):
 
-    # must be reimplemented
-    NNODE: int = None  # number of nodes, normally inherited
+    def __init__(self, *args, model=None, activity=None, densities=None,
+                 loads=None, strain_loads=None, t=None, fields=None, **kwargs):
+        
+        activity = fields.pop('activity', activity)
+        loads = fields.pop('loads', loads)
+        strain_loads = fields.pop('strain_loads', strain_loads)
+        densities = fields.pop('densities', densities)
+        t = fields.pop('t', t)
+        
+        super().__init__(*args, fields=fields, **kwargs)
+        
+        if self.db is not None:
+            topo = self.nodes.to_numpy()
+            nE, nNE = topo.shape
+            NDOFN = self.__class__.NDOFN
+            NSTRE = self.__class__.NSTRE
 
-    # from the mesh object
-    NDOFN: int = None  # numper of dofs per node, normally
+            if activity is None:
+                activity = np.ones(nE, dtype=bool)
+            else:
+                assert isboolarray(activity) and len(activity.shape) == 1, \
+                    "'activity' must be a 1d boolean numpy array!"
+            self.db['active'] = activity
 
-    # inherited form the model object
-    NDIM: int = None  # number of geometrical dimensions,
-    # normally inherited from the mesh object
+            # densities
+            if isinstance(densities, np.ndarray):
+                assert len(densities.shape) == 1, \
+                    "'densities' must be a 1d float or integer numpy array!"
+                self.db['densities'] = densities
+            else:
+                if densities is not None and 'densities' not in fields:
+                    raise TypeError(
+                        "'densities' must be a 1d float or integer numpy array!")
 
-    # inherited form the model object
-    NSTRE: int = None  # number of internal force components,
+            # body loads
+            if loads is None:
+                loads = np.zeros((nE, nNE, NDOFN, 1))
+            if loads is not None:
+                assert isinstance(loads, np.ndarray)
+                if loads.shape[0] == nE and loads.shape[1] == nNE:
+                    self.db['loads'] = loads
+                elif loads.shape[0] == nE and loads.shape[1] == nNE * NDOFN:
+                    loads = atleastnd(loads, 3, back=True)
+                    self.db['loads'] = loads.reshape(
+                        nE, nNE, NDOFN, loads.shape[-1])
 
-    # optional
-    qrule: str = None
-    quadrature = None
+            # strain loads
+            if strain_loads is None:
+                strain_loads = np.zeros((nE, NSTRE, 1))
+            if strain_loads is not None:
+                assert isinstance(strain_loads, np.ndarray)
+                assert strain_loads.shape[0] == nE
+                self.db['strain-loads'] = strain_loads
 
-    # advanced settings
-    compatible = True
+            if self.__class__.NDIM == 2:
+                if t is None:
+                    t = np.ones(nE, dtype=float)
+                else:
+                    if isinstance(t, float):
+                        t = np.full(nE, t)
+                    else:
+                        assert is1dfloatarray(t), \
+                            "'t' must be a 1d numpy array or a float!"
+                self.db['t'] = t
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    @property
-    def db(self):
-        return self._wrapped
-
-    # !TODO : this should be implemented at geometry
-    @classmethod
-    def lcoords(cls, *args, **kwargs):
-        raise NotImplementedError
-
-    # !TODO : this should be implemented at geometry
-    @classmethod
-    def lcenter(cls, *args, **kwargs):
-        raise NotImplementedError
-
-    # !TODO : this should be implemented at geometry
-    # !TODO : can be reimplemented if the element is not IsoP
-    def jacobian_matrix(self, *args, **kwargs):
-        raise NotImplementedError
-
-    # !TODO : this should be implemented at geometry
-    # !TODO : can be reimplemented if the element is not IsoP
-    def jacobian(self, *args, **kwargs):
-        raise NotImplementedError
-
-    # !TODO : this should be implemented at model
-    @classmethod
-    def strain_displacement_matrix(cls, *args, **kwargs):
-        raise NotImplementedError
-
-    # !TODO : this should be implemented at geometry
-    def shape_function_values(self, *args, **kwargs):
-        raise NotImplementedError
-
-    # !TODO : this should be implemented at geometry
-    # !TODO : can be reimplemented if the element is not IsoP
-    def shape_function_matrix(self, *args, **kwargs):
-        raise NotImplementedError
-
-    # !TODO : this should be implemented at geometry
-    def shape_function_derivatives(self, *args, **kwargs):
-        raise NotImplementedError
-
-    # !TODO : this should be implemented at model
-    def model_stiffness_matrix(self, *args, **kwargs):
-        raise NotImplementedError
-
-    # !TODO : this should be implemented at model
-    def stresses_at_centers(self, *args, **kwargs):
-        raise NotImplementedError
-
-    # !TODO : this should be implemented at model
-    def stresses_at_cells_nodes(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def direction_cosine_matrix(self):
-        return None
+        self._model = model
 
     def transform_coeff_matrix(self, K, *args, **kwargs):
         """
@@ -153,18 +142,6 @@ class FiniteElement:
         """
         dcm = self.direction_cosine_matrix()
         return K if dcm is None else transform_stiffness(K, dcm)
-
-    @classmethod
-    def integrate_body_loads(cls, *args, **kwargs):
-        raise NotImplementedError
-
-    def local_coordinates(self, *args, frames=None, _topo=None, **kwargs):
-        # implemented at PolyCell
-        raise NotImplementedError
-
-    def points_of_cells(self):
-        # implemented at PolyCell
-        raise NotImplementedError
 
     @squeeze(True)
     def dof_solution(self, *args, target='local', cells=None, points=None,
@@ -603,7 +580,7 @@ class FiniteElement:
 
     @squeeze(True)
     def stiffness_matrix(self, *args, **kwargs):
-        K = self.stiffness_matrix_v2(*args, **kwargs)
+        K = self.stiffness_matrix_v2(*args, transform=False, **kwargs)
         if 'conn' in self.db.fields:
             # only for line meshes at the moment
             conn = self.db.conn.to_numpy()
@@ -612,13 +589,17 @@ class FiniteElement:
                 #conn = np.reshape(conn, (nE, 2*nDOF))
                 factors = np.ones((nE, K.shape[-1]))
                 factors[:, :nDOF] = conn[:, 0, :]
-                factors[:, -nDOF:] = conn[:, 1, :]
-                reduce_stiffness_bulk(K, factors)
+                factors[:, -nDOF:] = conn[:, -1, :]
+                nEVAB2 = 2*nDOF - 0.5
+                cond = np.sum(factors, axis=1) < nEVAB2
+                i = np.where(cond)[0]
+                K[i] = constrain_local_stiffness_bulk(K[i], factors[i])
                 assert_min_stiffness_bulk(K)
             else:
                 raise NotImplementedError(
                     "Unknown shape of <{}> for 'connectivity'.".format(conn.shape))
-        return K
+        self.db['K'] = K
+        return self.transform_coeff_matrix(K)
 
     @config(store_strains=False)
     def stiffness_matrix_v1(self, *args, **kwargs):
@@ -682,7 +663,7 @@ class FiniteElement:
         return stiffness_matrix_bulk2(D, B, djac, q.weight)
 
     @config(store_strains=True)
-    def stiffness_matrix_v2(self, *args, **kwargs):
+    def stiffness_matrix_v2(self, *args, transform=True, **kwargs):
         nSTRE = self.__class__.NSTRE
         nDOF = self.__class__.NDOFN
         nNE = self.__class__.NNODE
@@ -727,7 +708,7 @@ class FiniteElement:
         if kwargs.get('store_strains', False):
             self.db['B'] = _gauss_strains_
 
-        return self.transform_coeff_matrix(K)
+        return self.transform_coeff_matrix(K) if transform else K
 
     def stiffness_matrix_coo(self, *args, **kwargs):
         nP = len(self.pointdata)
@@ -740,7 +721,7 @@ class FiniteElement:
     @squeeze(True)
     def mass_matrix(self, *args, **kwargs):
         return self.mass_matrix_v1(*args, **kwargs)
-    
+
     def mass_matrix_v1(self, *args, values=None, **kwargs):
         _topo = kwargs.get('_topo', self.db.nodes.to_numpy())
         if 'frames' not in kwargs:

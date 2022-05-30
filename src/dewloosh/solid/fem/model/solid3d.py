@@ -54,8 +54,12 @@ class Solid3d(Solid):
     NDOFN = 3
     NSTRE = 6
 
-    @classmethod
-    def strain_displacement_matrix(cls, *args, dshp=None, jac=None, **kwargs):
+    def strain_displacement_matrix(self, pcoords=None, *args, dshp=None, 
+                                   jac=None, **kwargs):
+        if dshp is None and pcoords is not None:
+            dshp = self.shape_function_derivatives(pcoords)
+        if jac is None:
+            jac = self.jacobian_matrix(dshp=dshp)
         return strain_displacement_matrix(dshp, jac)
 
     @classmethod

@@ -3,118 +3,59 @@ import numpy as np
 
 from dewloosh.core import squeeze
 
-from dewloosh.math.array import isboolarray, is1dfloatarray, atleast3d, atleastnd
+from dewloosh.math.array import atleast3d
 
 from dewloosh.geom import PolyData
-from dewloosh.geom.space import PointCloud
 
-from .preproc import fem_load_vector, fem_penalty_matrix_coo, fem_nodal_mass_matrix_coo
-
-
-class FemPoints(PointCloud):
-
-    def __init__(self, *args, loads=None, fixity=None, densities=None, **kwargs):
-        super().__init__(*args, **kwargs)
+from .pointdata import PointData
+from .preproc import fem_load_vector, fem_penalty_matrix_coo, \
+    fem_nodal_mass_matrix_coo
 
 
 class FemMesh(PolyData):
 
     NDOFN = 3
-    _point_cls_ = FemPoints
+    _point_class_ = PointData
 
-    def __init__(self, *args,  model=None, fixity=None, activity=None,
-                 loads=None, body_loads=None, strain_loads=None, t=None,
-                 densities=None, mass=None, **kwargs):
-        # parent class handles pointdata and celldata creation
-        super().__init__(*args, **kwargs)
-
-        # initialize activity information, default is active (True)
-        if self.celldata is not None:
-            topo = self.celldata.nodes.to_numpy()
-            nE, nNE = topo.shape
-
-            if activity is None:
-                activity = np.ones(nE, dtype=bool)
-            else:
-                assert isboolarray(activity) and len(activity.shape) == 1, \
-                    "'activity' must be a 1d boolean numpy array!"
-            self.celldata.db['active'] = activity
-            
-            if isinstance(densities, np.ndarray):
-                assert len(densities.shape) == 1, \
-                    "'densities' must be a 1d float or integer numpy array!"
-                self.celldata.db['densities'] = densities
-            else:
-                if densities is not None:
-                    raise TypeError(
-                        "'densities' must be a 1d float or integer numpy array!")
-
-            # body loads
-            if body_loads is None:
-                body_loads = np.zeros((nE, nNE, self.celldata.NDOFN, 1))
-            assert isinstance(body_loads, np.ndarray)
-            if body_loads.shape[0] == nE and body_loads.shape[1] == nNE:
-                self.celldata.db['loads'] = body_loads
-            elif body_loads.shape[0] == nE and body_loads.shape[1] == nNE * self.NDOFN:
-                body_loads = atleastnd(body_loads, 3, back=True)
-                self.celldata.db['loads'] = body_loads.reshape(
-                    nE, nNE, self.NDOFN, body_loads.shape[-1])
-
-            # strain loads
-            if strain_loads is None:
-                strain_loads = np.zeros((nE, self.celldata.NSTRE, 1))
-            assert isinstance(strain_loads, np.ndarray)
-            assert strain_loads.shape[0] == nE
-            self.celldata.db['strain-loads'] = strain_loads
-
-            if self.celldata.NDIM == 2:
-                if t is None:
-                    t = np.ones(nE, dtype=float)
-                else:
-                    if isinstance(t, float):
-                        t = np.full(nE, t)
-                    else:
-                        assert is1dfloatarray(t), \
-                            "'t' must be a 1d numpy array or a float!"
-                self.celldata.db['t'] = t
-            self.NDOFN = self.celldata.NDOFN
-
-        # initialize boundary conditions
-        if self.is_root():
-            # initialize essential boundary conditions, default is free (False)
-            if fixity is None and self.pointdata is not None:
-                fixity = np.zeros(
-                    (len(self.pointdata), self.NDOFN), dtype=bool)
-            elif fixity is not None:
-                assert isinstance(fixity, np.ndarray) and len(
-                    fixity.shape) == 2
-                self.pointdata['fixity'] = fixity
-            # initialize natural boundary conditions
-            if loads is None and self.pointdata is not None:
-                loads = np.zeros((len(self.pointdata), self.NDOFN, 1))
-            if loads is not None:
-                assert isinstance(loads, np.ndarray)
-                N = len(self.pointdata)
-                if loads.shape[0] == N:
-                    self.pointdata['loads'] = loads
-                elif loads.shape[0] == N * self.NDOFN:
-                    loads = atleastnd(loads, 2, back=True)
-                    self.pointdata['loads'] = loads.reshape(
-                        N, self.NDOFN, loads.shape[-1])
-            if mass is not None:
-                if isinstance(mass, float) or isinstance(mass, int):
-                    raise NotImplementedError
-                elif isinstance(mass, np.ndarray):
-                    self.pointdata['mass'] = mass
-        else:
+    def __init__(self, *args, model=None, fixity=None, loads=None, body_loads=None,
+                 strain_loads=None, t=None, densities=None, mass=None,
+                 cell_fields=None, point_fields=None, activity=None, **kwargs):
+        # fill up data objects with obvious data
+        point_fields = {} if point_fields is None else point_fields
+        point_fields['loads'] = loads
+        point_fields['mass'] = mass
+        point_fields['fixity'] = fixity
+        point_fields['loads'] = loads
+        cell_fields = {} if cell_fields is None else cell_fields
+        cell_fields['loads'] = body_loads
+        cell_fields['strain_loads'] = strain_loads
+        cell_fields['densities'] = densities
+        cell_fields['t'] = t
+        super().__init__(*args, point_fields=point_fields,
+                         cell_fields=cell_fields, **kwargs)
+        # nodal data can only be provided for the root object
+        if not self.is_root():
             assert loads is None, "At object creation, nodal loads can only \
                 be provided at the top level."
             assert fixity is None, "At object creation, fixity information \
                 can only be provided at the top level."
             assert mass is None, "At object creation, nodal masses can only \
                 be provided at the top level."
-
-        # material model
+        # it is determined by the size of `activity` whether it refers to 
+        # cells or points
+        if isinstance(activity, np.ndarray):
+            nA = activity.shape[0]
+            if self.celldata is not None:
+                N = len(self.celldata)
+                if nA == N:
+                    self.celldata['active'] = activity
+                    nA = -1
+            if nA > 0 and self.pointdata is not None:
+                N = len(self.pointdata)
+                if nA == N:
+                    self.pointdata['active'] = activity
+                    nA = -1
+            assert nA < 0
         self._model = model
 
     def cells_coords(self, *args, points=None, cells=None, **kwargs):
@@ -159,7 +100,7 @@ class FemMesh(PolyData):
         Returns the mass matrix in coo format. If `distribute` is set 
         to `True`, nodal masses are distributed over neighbouring cells 
         and handled as self-weight is.
-        
+
         """
         # distributed masses (cells)
         blocks = list(self.cellblocks(inclusive=True))
@@ -171,9 +112,11 @@ class FemMesh(PolyData):
             d = pd['mass'].to_numpy()
             if distribute:
                 v = self.volumes()
-                edata = list(map(lambda b : b.celldata.pull(data=d, avg=v), blocks))
-                def foo(bv): return bv[0].celldata.mass_matrix_coo(values=bv[1])
-                moo = map(lambda i : (blocks[i], edata[i]), range(len(blocks)))
+                edata = list(
+                    map(lambda b: b.celldata.pull(data=d, avg=v), blocks))
+                def foo(bv): return bv[0].celldata.mass_matrix_coo(
+                    values=bv[1])
+                moo = map(lambda i: (blocks[i], edata[i]), range(len(blocks)))
                 M += np.sum(list(map(foo, moo))).tocoo()
             else:
                 ndof = self.__class__.NDOFN
@@ -189,12 +132,12 @@ class FemMesh(PolyData):
         """
         Returns the mass matrix of the mesh with either dense 
         or sparse layout.
-        
+
         Notes
         -----
         If there are nodal masses defined, only sparse output is 
         available at the moment.
-        
+
         """
         if sparse:
             return self.mass_matrix_coo(*args, **kwargs)
@@ -375,7 +318,7 @@ class FemMesh(PolyData):
 
 
 def fem_mesh_from_obj(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 if __name__ == '__main__':

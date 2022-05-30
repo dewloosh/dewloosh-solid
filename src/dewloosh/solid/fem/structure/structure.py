@@ -15,24 +15,34 @@ __all__ = ['Structure']
 
 """
 PARDISO MATRIX TYPES
+
 1
 real and structurally symmetric
+
 2
 real and symmetric positive definite
+
 -2
 real and symmetric indefinite
+
 3
 complex and structurally symmetric
+
 4
 complex and Hermitian positive definite
+
 -4
 complex and Hermitian indefinite
+
 6
 complex and symmetric
+
 11
 real and nonsymmetric
+
 13
 complex and nonsymmetric
+
 """
 
 
@@ -57,13 +67,8 @@ class Structure(Wrapper):
 
     def linsolve(self, *args, **kwargs):
         """
-        Performs a linear elastostatic solution with pre- and post-processing.
-
-        new point data:
-            - 'dofsol' : degree of freedom solution for each node
-
-        new cell data:
-            - 'dofsol' : degree of freedom solution for each cell
+        Performs a linear elastostatic calculatiion with pre- and 
+        post-processing included.
         """
         self.preprocess(*args, **kwargs)
         self.process(*args, **kwargs)

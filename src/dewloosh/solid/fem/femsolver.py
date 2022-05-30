@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import numpy as np
 from scipy.sparse import coo_matrix as npcoo, csc_matrix as npcsc
 
 from .utils import irows_icols_bulk
 from .linsolve import box_fem_data_bulk, solve_standard_form, unbox_lhs
 from .eigsolve import eig_sparse, eig_dense, calc_eig_res
+from .dyn import effective_modal_masses
 
 
 class FemSolver:
@@ -152,3 +152,77 @@ class FemSolver:
             r = calc_eig_res(K, self.M, vals, vecs)
             return self.vmodes, r
         return self.vmodes
+    
+    def effective_modal_masses(self, *args, action=None, modes=None, **kwargs):
+        """
+        Returns effective modal masses of several modes of vibration.
+        
+        Parameters
+        ----------
+        action : Iterable
+            1d iterable, with a length matching the dof layout of the structure.
+        
+        modes : numpy array, Optional
+            A matrix, whose columns are eigenmodes of interest.
+            Default is None.
+            
+        Notes
+        -----
+        The sum of all effective masses equals the total mass of the structure.
+            
+        Returns
+        -------
+        numpy array
+            An array of effective mass values.
+        """
+        if action is None:
+            raise TypeError("No action is provided!")
+        vecs = self.vmodes[1] if modes is None else modes
+        return effective_modal_masses(self.M, action, vecs)
+    
+    def modal_participation_factors(self, *args, **kwargs):
+        """
+        Returns modal participation factors of several modes of vibration.
+        
+        The parameters are forwarded to `FemSolver.effective_modal_masses`.
+        
+        Notes
+        -----
+        The sum of all modal participation factors equals 1.
+        
+        Returns
+        -------
+        numpy array
+            An array of values between 0 and 1.
+        """
+        m = self.effective_modal_masses(*args, **kwargs)
+        return m / np.sum(m)
+    
+    def estimate_first_mode_of_vibration(self, *args, method='GA', **kwargs):
+        pass
+    
+    def target_participation_factor(self, *args, action=None, **kwargs):
+        """
+        Returns the participation factor for the case when the structure
+        hangs like a console under its own weight. 
+        
+        The idea of the modal response spectrum analysis suggests, that for 
+        tall structures this shape should be close enough to the first mode of 
+        vibration, thus provides means to estimate the largest modal participation 
+        factor for practical scenarios.
+        
+        Parameters
+        ----------
+        action : Vector, Optional.
+            An array specifying the direction of excitation. If not specified, the
+            direction of action is estimated. Default is None.
+                                
+        Returns
+        -------
+        float
+            The target modal participation factor.
+        """
+        pass
+    
+    def equivalent_nodal_forces(self, *args, action=None, **kwargs):
+        pass

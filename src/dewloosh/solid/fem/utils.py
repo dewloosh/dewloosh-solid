@@ -499,14 +499,69 @@ def transform_stiffness(K: ndarray, dcm: ndarray):
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
-def reduce_stiffness_bulk(K: ndarray, factors: ndarray):
-    for iE in prange(K.shape[0]):
-        for jV in prange(K.shape[-1]):
-            a = K[iE, jV, jV]
-            K[iE, jV, :] *= factors[iE, jV]
-            K[iE, :, jV] *= factors[iE, jV]
-            K[iE, jV, jV] = a * factors[iE, jV]
-    return K
+def pull_submatrix(A, r, c):
+    nR = r.shape[0]
+    nC = c.shape[0]
+    res = np.zeros((nR, nC), dtype=A.dtype)
+    for i in prange(nR):
+        for j in prange(nC):
+            res[i, j] = A[r[i], c[j]]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def push_submatrix(A, Asub, r, c, new=True):
+    nR = r.shape[0]
+    nC = c.shape[0]
+    res = np.zeros_like(A)
+    if not new:
+        res[:, :] = A
+    for i in prange(nR):
+        for j in prange(nC):
+            res[r[i], c[j]] = Asub[i, j]
+    return res
+    
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def constrain_local_stiffness_bulk(K: ndarray, factors: ndarray):
+    """
+    Returns the condensed stiffness matrices representing constraints
+    on the internal forces of the elements (eg. hinges).
+    
+    Currently this solution is only able to handle two states, being total free 
+    and being fully constrained. The factors are expected to be numbers between
+    0 and 1, where dofs with a factor > 0.5 are assumed to be the constrained ones.
+    
+    Parameters
+    ----------
+    K : numpy.ndarray
+        3d float array, the stiffness matrix for several elements of the same kind.
+        
+    factors: numpy.ndarray
+        2d float array of connectivity facotors for each dof of every element.
+                    
+    Notes
+    -----
+    This solution applies the idea of static condensation.
+    
+    Returns
+    -------
+    numpy.ndarray
+        The constrained stiffness matrices with the same shape as `K`.
+        
+    """
+    nE, nV, _ = K.shape
+    res = np.zeros_like(K)
+    for iE in prange(nE):
+        b = np.where(factors[iE] > 0.5)[0]
+        i = np.where(factors[iE] <= 0.5)[0]
+        Kbb = pull_submatrix(K[iE], b, b)
+        Kii = pull_submatrix(K[iE], i, i)
+        Kib = pull_submatrix(K[iE], i, b)
+        Kbi = pull_submatrix(K[iE], b, i)
+        Kbb -= Kbi @ np.linalg.inv(Kii) @ Kib
+        res[iE] = push_submatrix(K[iE], Kbb, b, b, True)
+    return res
 
 
 def assert_min_stiffness_bulk(K: ndarray, minval = 1e-12):

@@ -129,9 +129,11 @@ def calculate_shear_forces(dofsol: ndarray, forces: ndarray,
 
 class BernoulliBeam(Solid):
 
+    __dofs__ = ('UX', 'UY', 'UZ', 'ROTX', 'ROTY', 'ROTZ')
+    
     NDOFN = 6
     NSTRE = 4
-
+    
     def model_stiffness_matrix(self, *args, **kwargs):
         return self.material_stiffness_matrix()
 
@@ -166,6 +168,21 @@ class BernoulliBeam(Solid):
         gdshp = self.shape_function_derivatives(
             pcoords, rng=rng, jac=jac, dshp=dshp)
         return strain_displacement_matrix_bulk(gdshp)
+    
+    def masses(self, *args, values=None, **kwargs):
+        if isinstance(values, np.ndarray):
+            dens = values
+        else:
+            dens = self.db.densities.to_numpy()
+        try:
+            areas = self.areas()
+        except Exception:
+            areas = np.ones_like(dens)
+        lengths = self.lengths()
+        return areas * dens * lengths
+    
+    def mass(self, *args, **kwargs):
+        return np.sum(self.masses(*args, **kwargs))
 
     
 
