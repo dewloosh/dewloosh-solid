@@ -4,8 +4,7 @@ from numpy import ndarray
 from collections import Iterable
 from typing import Union, Callable
 
-from dewloosh.core import squeeze, is_none_or_false
-
+from dewloosh.math import squeeze, is_none_or_false
 from dewloosh.math.array import atleast1d, atleastnd, ascont
 from dewloosh.math.utils import to_range
 

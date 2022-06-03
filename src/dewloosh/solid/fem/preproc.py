@@ -3,8 +3,7 @@ from scipy.sparse import coo_matrix
 import numpy as np
 from numpy import ndarray
 
-from dewloosh.core import squeeze
-
+from dewloosh.math import squeeze
 from dewloosh.math.array import isintegerarray, isfloatarray, \
     isboolarray, bool_to_float, atleastnd
 from dewloosh.math.linalg.sparse.utils import lower_spdata, upper_spdata

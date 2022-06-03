@@ -3,8 +3,7 @@ import numpy as np
 from numba import njit, prange
 from numpy import ndarray, pi as PI
 
-from dewloosh.core import squeeze
-
+from dewloosh.math import squeeze
 from dewloosh.math.array import atleast3d
 
 

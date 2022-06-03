@@ -2,8 +2,8 @@
 import numpy as np
 
 from dewloosh.core.abc.wrap import Wrapper
-from dewloosh.core import squeeze
 
+from dewloosh.math import squeeze
 from dewloosh.math.array import repeat
 
 from ..mesh import FemMesh, fem_mesh_from_obj

@@ -71,18 +71,18 @@ def summary(pts):
     Ixx, Iyy, Ixy = inertia(pts)
     I1, I2, theta = principal(Ixx, Iyy, Ixy)
     summ = """Area
-  A = {}
-Centroid
-  cx = {}
-  cy = {}
-Moments and product of inertia
-  Ixx = {}
-  Iyy = {}
-  Ixy = {}
-Principal moments of inertia and direction
-  I1 = {}
-  I2 = {}
-  θ︎ = {}°""".format(a, cx, cy, Ixx, Iyy, Ixy, I1, I2, degrees(theta))
+        A = {}
+        Centroid
+        cx = {}
+        cy = {}
+        Moments and product of inertia
+        Ixx = {}
+        Iyy = {}
+        Ixy = {}
+        Principal moments of inertia and direction
+        I1 = {}
+        I2 = {}
+        θ︎ = {}°""".format(a, cx, cy, Ixx, Iyy, Ixy, I1, I2, degrees(theta))
     return summ
 
 

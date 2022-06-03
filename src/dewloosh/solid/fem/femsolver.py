@@ -7,6 +7,37 @@ from .linsolve import box_fem_data_bulk, solve_standard_form, unbox_lhs
 from .eigsolve import eig_sparse, eig_dense, calc_eig_res
 from .dyn import effective_modal_masses
 
+"""
+PARDISO MATRIX TYPES
+
+1
+real and structurally symmetric
+
+2
+real and symmetric positive definite
+
+-2
+real and symmetric indefinite
+
+3
+complex and structurally symmetric
+
+4
+complex and Hermitian positive definite
+
+-4
+complex and Hermitian indefinite
+
+6
+complex and symmetric
+
+11
+real and nonsymmetric
+
+13
+complex and nonsymmetric
+
+"""
 
 class FemSolver:
 

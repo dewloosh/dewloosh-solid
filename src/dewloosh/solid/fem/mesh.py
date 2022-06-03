@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-from dewloosh.core import squeeze
-
+from dewloosh.math import squeeze
 from dewloosh.math.array import atleast3d
 
 from dewloosh.geom import PolyData

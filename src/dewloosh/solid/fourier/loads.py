@@ -5,11 +5,11 @@ from numpy import sin, cos, ndarray, pi as PI
 from numba import njit, prange
 from collections import Iterable
 
-from dewloosh.core import squeeze
 from dewloosh.core.types import Library
 from dewloosh.core.types.defaultdict import parsedicts_addr
 from dewloosh.core.tools import allinkwargs, popfromdict, float_to_str_sig
 
+from dewloosh.math import squeeze
 from dewloosh.math.array import atleast1d, atleast2d, atleast3d
 
 

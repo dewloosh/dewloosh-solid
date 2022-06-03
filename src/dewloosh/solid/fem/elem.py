@@ -4,8 +4,7 @@ import numpy as np
 from collections import namedtuple, Iterable
 from typing import Callable, Iterable
 
-from dewloosh.core import squeeze, config
-
+from dewloosh.math import squeeze, config
 from dewloosh.math.linalg import ReferenceFrame
 from dewloosh.math.array import atleast1d, atleastnd, \
     ascont, isboolarray, is1dfloatarray
