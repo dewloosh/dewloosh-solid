@@ -225,7 +225,3 @@ def stiffness_data(C_126: np.ndarray, C_45: np.ndarray, angles: np.ndarray,
 def z_to_shear_factors(z, sfx, sfy):
     monoms = np.array([1, z, z**2], dtype=sfx.dtype)
     return np.dot(monoms, sfx), np.dot(monoms, sfy)
-
-
-if __name__ == '__main__':
-    pass

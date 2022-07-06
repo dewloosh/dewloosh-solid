@@ -2,12 +2,15 @@
 from dewloosh.core.tools.kwargtools import getasany
 
 
-standard_keys_ortho = ['E1', 'E2', 'E3', 'NU12', 'NU13', 'NU23', 'G12', 'G13', 'G23']
+standard_keys_ortho = ['E1', 'E2', 'E3',
+                       'NU12', 'NU13', 'NU23', 'G12', 'G13', 'G23']
 keys_ortho_all = standard_keys_ortho + ['NU21', 'NU32', 'NU31']
-bulk_keys_ortho = ['E1', 'E2', 'E3', 'NU12', 'NU13', 'NU23', 'NU21', 'NU32', 'NU31']
+bulk_keys_ortho = ['E1', 'E2', 'E3', 'NU12',
+                   'NU13', 'NU23', 'NU21', 'NU32', 'NU31']
 
 
-class HookeError(Exception): ...
+class HookeError(Exception):
+    ...
 
 
 def group_mat_params(**params) -> tuple:
@@ -21,11 +24,11 @@ def group_mat_params(**params) -> tuple:
         3 dictionaries for Young's moduli, Poisson's ratios 
         and shear moduli.
     """
-    PARAMS = {key.upper() : value for key, value in params.items()}
+    PARAMS = {key.upper(): value for key, value in params.items()}
     keys = list(PARAMS.keys())
-    E = {key : PARAMS[key] for key in keys if key[0] == 'E'}
-    NU = {key : PARAMS[key] for key in keys if key[:2] == 'NU'}
-    G = {key : PARAMS[key] for key in keys if key[0] == 'G'}
+    E = {key: PARAMS[key] for key in keys if key[0] == 'E'}
+    NU = {key: PARAMS[key] for key in keys if key[:2] == 'NU'}
+    G = {key: PARAMS[key] for key in keys if key[0] == 'G'}
     return E, NU, G
 
 
@@ -59,7 +62,7 @@ def get_iso_params(*args, **kwargs):
     isotropic material. 
     Requires 2 independent constants to be provided.
     """
-    KWARGS = {key.upper() : value for key, value in kwargs.items()}
+    KWARGS = {key.upper(): value for key, value in kwargs.items()}
     E = KWARGS.get('E', None)
     G = KWARGS.get('G', None)
     NU = KWARGS.get('NU', None)
@@ -71,13 +74,13 @@ def get_iso_params(*args, **kwargs):
         elif NU is None:
             NU = E/2/G - 1
     except TypeError:
-        raise HookeError("At least 2 independent constants" \
-            " must be defined for an isotropic material")
+        raise HookeError("At least 2 independent constants"
+                         " must be defined for an isotropic material")
     params = \
-        {'E1' : E, 'E2' : E, 'E3' : E, 
-        'NU12' : NU, 'NU13' : NU, 'NU23' : NU,
-        'NU21' : NU, 'NU31' : NU, 'NU32' : NU,
-        'G12' : G, 'G13' : G, 'G23' : G}
+        {'E1': E, 'E2': E, 'E3': E,
+         'NU12': NU, 'NU13': NU, 'NU23': NU,
+         'NU21': NU, 'NU31': NU, 'NU32': NU,
+         'G12': G, 'G13': G, 'G23': G}
     return params
 
 
@@ -89,7 +92,7 @@ def get_triso_params(*args, **kwargs) -> dict:
     from which 1 must be the out-of-plane shear moduli. 
     The remaining 4 necessary constants can be provided in any combination.
     """
-    KWARGS = {key.upper() : value for key, value in kwargs.items()}
+    KWARGS = {key.upper(): value for key, value in kwargs.items()}
     G12 = getasany(['G12', 'G21'], None, **KWARGS)
     G23 = getasany(['G23', 'G32'], None, **KWARGS)
     G13 = getasany(['G13', 'G23'], None, **KWARGS)
@@ -103,10 +106,10 @@ def get_triso_params(*args, **kwargs) -> dict:
     NU13 = KWARGS.get('NU13', None)
     NU31 = KWARGS.get('NU31', None)
     params = \
-        {'E1' : E1, 'E2' : E2, 'E3' : E3, 
-        'NU12' : NU12, 'NU13' : NU13, 'NU23' : NU23,
-        'NU21' : NU21, 'NU31' : NU31, 'NU32' : NU32,
-        'G12' : G12, 'G13' : G13, 'G23' : G23}
+        {'E1': E1, 'E2': E2, 'E3': E3,
+         'NU12': NU12, 'NU13': NU13, 'NU23': NU23,
+         'NU21': NU21, 'NU31': NU31, 'NU32': NU32,
+         'G12': G12, 'G13': G13, 'G23': G23}
     return params
 
 
@@ -118,7 +121,7 @@ def get_ortho_params(*args, **kwargs) -> dict:
     3 must be shear moduli. The remaining 6 necessary constants 
     can be provided in any combination.
     """
-    KWARGS = {key.upper() : value for key, value in kwargs.items()}
+    KWARGS = {key.upper(): value for key, value in kwargs.items()}
     G12 = getasany(['G12', 'G21'], None, **KWARGS)
     assert G12 is not None, "Shear modulus G12 \
         must be provided as either G12 or G21!"
@@ -138,11 +141,12 @@ def get_ortho_params(*args, **kwargs) -> dict:
     NU13 = KWARGS.get('NU13', None)
     NU31 = KWARGS.get('NU31', None)
     params = \
-        {'E1' : E1, 'E2' : E2, 'E3' : E3, 
-        'NU12' : NU12, 'NU13' : NU13, 'NU23' : NU23,
-        'NU21' : NU21, 'NU31' : NU31, 'NU32' : NU32,
-        'G12' : G12, 'G13' : G13, 'G23' : G23}
+        {'E1': E1, 'E2': E2, 'E3': E3,
+         'NU12': NU12, 'NU13': NU13, 'NU23': NU23,
+         'NU21': NU21, 'NU31': NU31, 'NU32': NU32,
+         'G12': G12, 'G13': G13, 'G23': G23}
     return params
+
 
 if __name__ == '__main__':
     get_iso_params(E=1, NU=0.2)

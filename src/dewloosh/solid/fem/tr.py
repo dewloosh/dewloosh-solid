@@ -5,6 +5,29 @@ __cache = True
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
+def nodal_dcm(dcm: ndarray, N=2):
+    nE = dcm.shape[0]
+    res = np.zeros((nE, 3 * N, 3 * N), dtype=dcm.dtype)
+    for i in prange(N):
+        _i = i * 3
+        i_ = _i + 3
+        res[:, _i:i_, _i:i_] = dcm
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def element_dcm(nodal_dcm: ndarray, nNE: int = 2, nDOF: int=6):
+    nE = nodal_dcm.shape[0]
+    nEVAB = nNE * nDOF
+    res = np.zeros((nE, nEVAB, nEVAB), dtype=nodal_dcm.dtype)
+    for iNE in prange(nNE):
+        i0, i1 = nDOF*iNE, nDOF * (iNE+1)
+        for iE in prange(nE):
+            res[iE, i0: i1, i0: i1] = nodal_dcm[iE]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
 def element_transformation_matrices(Q: ndarray, nNE: int=2):
     nE = Q.shape[0]
     nEVAB = nNE * 6

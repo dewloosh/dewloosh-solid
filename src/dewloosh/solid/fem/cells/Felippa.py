@@ -3,8 +3,8 @@ import numpy as np
 from numpy import ndarray
 from numba import njit, prange
 
-from dewloosh.geom.cells import T3 as Triangle
-from dewloosh.geom.tri.triutils import lcoords_tri, shp_tri_loc
+from dewloosh.mesh.cells import T3 as Triangle
+from dewloosh.mesh.tri.triutils import lcoords_tri, shp_tri_loc
 
 from ..elem import FiniteElement
 from ..model.membrane import Membrane

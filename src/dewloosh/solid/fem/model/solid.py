@@ -19,9 +19,6 @@ class Solid(FemModel):
     def material_stiffness_matrix(self, *args, **kwargs):
         return self._wrapped.mat.to_numpy()
 
-    def thickness(self, *args, **kwargs):
-        raise NotImplementedError
-
     def model_stiffness_matrices(self, *args, **kwargs):
         return self.material_stiffness_matrices()
 
@@ -38,13 +35,13 @@ class Solid(FemModel):
         return model_strains(dofsol1d, gnum, B)
 
     def strains_at(self, lcoords, *args,  z=None, topo=None, **kwargs):
-        topo = self.nodes.to_numpy() if topo is None else topo
+        topo = self.topology() if topo is None else topo
         lcoords = atleast2d(lcoords)
         dshp = self.shape_function_derivatives(lcoords)
         ecoords = self.local_coordinates(topo=topo)
         jac = self.jacobian_matrix(dshp=dshp, ecoords=ecoords)
         gnum = topo_to_gnum(topo, self.NDOFN)
-        dofsol1d = self.pointdata.dofsol.to_numpy().flatten()
+        dofsol1d = self.pointdata.dofsol.flatten()
         B = self.strain_displacement_matrix(dshp=dshp, jac=jac)
         return self.model_strains(dofsol1d, gnum, B)
 

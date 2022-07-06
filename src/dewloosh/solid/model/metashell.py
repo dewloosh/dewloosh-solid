@@ -2,12 +2,12 @@
 import numpy as np
 from abc import abstractmethod
 
-from dewloosh.core.types import Library
+from dewloosh.core import DeepDict
 from dewloosh.core.tools.kwargtools import getasany, allinkwargs, anyinkwargs
-from dewloosh.core.types.defaultdict import parsedicts_addr
+from dewloosh.core.tools.dtk import parsedicts_addr
 
 
-class MetaSurface(Library):
+class MetaSurface(DeepDict):
     """
     Base object implementing methods that both a folder (a shell) and a
     file (a layer) can posess.

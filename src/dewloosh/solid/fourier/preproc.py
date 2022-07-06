@@ -38,6 +38,7 @@ def lhs_Navier(size: tuple, shape: tuple, *args, D: ndarray,
     numpy.ndarray
         3d or 4d float array of coefficients. The shape depends on
         the shape of the input parameters.
+        
     """
     if model.lower() in ['mindlin', 'm']:
         return lhs_Mindlin(size, shape, atleast3d(D), atleast3d(S))
@@ -70,6 +71,7 @@ def lhs_Mindlin(size: tuple, shape: tuple, D: np.ndarray, S: np.ndarray):
     -------
     numpy.ndarray
         4d float array of coefficients.
+        
     """
     Lx, Ly = size
     nLHS = D.shape[0]
@@ -121,6 +123,7 @@ def lhs_Kirchhoff(size: tuple, shape: tuple, D: np.ndarray):
     -------
     numpy.ndarray
         2d float array of coefficients.
+        
     """
     Lx, Ly = size
     nLHS = D.shape[0]

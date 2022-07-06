@@ -4,7 +4,7 @@ from numpy import ndarray
 from numba import njit, prange
 
 from dewloosh.math import squeeze
-from dewloosh.math.linalg._solve import npsolve
+from dewloosh.math.linalg.solve import npsolve
 
 
 @squeeze(True)

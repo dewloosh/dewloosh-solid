@@ -4,32 +4,36 @@ import numpy as np
 from dewloosh.math import squeeze
 from dewloosh.math.array import atleast3d
 
-from dewloosh.geom import PolyData
+from dewloosh.mesh import PolyData
 
 from .pointdata import PointData
+from .celldata import CellData
 from .preproc import fem_load_vector, fem_penalty_matrix_coo, \
     fem_nodal_mass_matrix_coo
 
 
 class FemMesh(PolyData):
 
-    NDOFN = 3
+    dofs = ('UX', 'UY', 'UZ', 'ROTX', 'ROTY', 'ROTZ')
+    NDOFN = 6
     _point_class_ = PointData
 
     def __init__(self, *args, model=None, fixity=None, loads=None, body_loads=None,
-                 strain_loads=None, t=None, densities=None, mass=None,
+                 strain_loads=None, t=None, density=None, mass=None,
                  cell_fields=None, point_fields=None, activity=None, **kwargs):
         # fill up data objects with obvious data
+        pkeys = self.__class__._point_class_._attr_map_
         point_fields = {} if point_fields is None else point_fields
-        point_fields['loads'] = loads
-        point_fields['mass'] = mass
-        point_fields['fixity'] = fixity
-        point_fields['loads'] = loads
+        point_fields[pkeys['loads']] = loads
+        point_fields[pkeys['mass']] = mass
+        point_fields[pkeys['fixity']] = fixity
+        point_fields[pkeys['loads']] = loads
+        ckeys = CellData._attr_map_
         cell_fields = {} if cell_fields is None else cell_fields
-        cell_fields['loads'] = body_loads
-        cell_fields['strain_loads'] = strain_loads
-        cell_fields['densities'] = densities
-        cell_fields['t'] = t
+        cell_fields[ckeys['loads']] = body_loads
+        cell_fields[ckeys['strain-loads']] = strain_loads
+        cell_fields[ckeys['density']] = density
+        cell_fields[ckeys['t']] = t
         super().__init__(*args, point_fields=point_fields,
                          cell_fields=cell_fields, **kwargs)
         # nodal data can only be provided for the root object
@@ -47,12 +51,12 @@ class FemMesh(PolyData):
             if self.celldata is not None:
                 N = len(self.celldata)
                 if nA == N:
-                    self.celldata['active'] = activity
+                    self.celldata.activity = activity
                     nA = -1
             if nA > 0 and self.pointdata is not None:
                 N = len(self.pointdata)
                 if nA == N:
-                    self.pointdata['active'] = activity
+                    self.pointdata.activity = activity
                     nA = -1
             assert nA < 0
         self._model = model
@@ -72,6 +76,19 @@ class FemMesh(PolyData):
             else:
                 def foo(b): return b.celldata.coords(*args, **kwargs)
                 return np.vstack(list(map(foo, blocks)))
+            
+    def element_dof_numbering(self, *args, **kwargs):
+        blocks = self.cellblocks(inclusive=True)
+        def foo(b): return b.celldata.global_dof_numbering()
+        return np.vstack(list(map(foo, blocks)))
+
+    def stiffness_matrix(self, *args, sparse=True, **kwargs):
+        """Elastic stiffness matrix in dense format."""
+        if sparse:
+            return self.stiffness_matrix_coo(*args, **kwargs)
+        blocks = self.cellblocks(inclusive=True)
+        def foo(b): return b.celldata.stiffness_matrix()
+        return np.vstack(list(map(foo, blocks)))
 
     def stiffness_matrix_coo(self, *args, eliminate_zeros=True,
                              sum_duplicates=True, **kwargs):
@@ -84,13 +101,27 @@ class FemMesh(PolyData):
         if sum_duplicates:
             K.sum_duplicates()
         return K
+    
+    def mass_matrix(self, *args, sparse=True, **kwargs):
+        """
+        Returns the mass matrix of the mesh with either dense 
+        or sparse layout.
 
-    def stiffness_matrix(self, *args, sparse=True, **kwargs):
-        """Elastic stiffness matrix in dense format."""
+        Notes
+        -----
+        If there are nodal masses defined, only sparse output is 
+        available at the moment.
+
+        """
         if sparse:
-            return self.stiffness_matrix_coo(*args, **kwargs)
+            return self.mass_matrix_coo(*args, **kwargs)
+        else:
+            dbkey = self.__class__._point_class_._attr_map_['mass']
+            if dbkey in self.root().pointdata.fields:
+                return self.mass_matrix_coo(*args, **kwargs)
+        # distributed masses (cells)
         blocks = self.cellblocks(inclusive=True)
-        def foo(b): return b.celldata.stiffness_matrix()
+        def foo(b): return b.celldata.mass_matrix()
         return np.vstack(list(map(foo, blocks)))
 
     def mass_matrix_coo(self, *args, eliminate_zeros=True,
@@ -107,8 +138,9 @@ class FemMesh(PolyData):
         M = np.sum(list(map(foo, blocks))).tocoo()
         # nodal masses
         pd = self.root().pointdata
-        if 'mass' in pd.fields:
-            d = pd['mass'].to_numpy()
+        dbkey = self.__class__._point_class_._attr_map_['mass']
+        if dbkey in pd.fields:
+            d = pd.mass()
             if distribute:
                 v = self.volumes()
                 edata = list(
@@ -127,27 +159,6 @@ class FemMesh(PolyData):
             M.sum_duplicates()
         return M
 
-    def mass_matrix(self, *args, sparse=True, **kwargs):
-        """
-        Returns the mass matrix of the mesh with either dense 
-        or sparse layout.
-
-        Notes
-        -----
-        If there are nodal masses defined, only sparse output is 
-        available at the moment.
-
-        """
-        if sparse:
-            return self.mass_matrix_coo(*args, **kwargs)
-        else:
-            if 'mass' in self.root().pointdata.fields:
-                return self.mass_matrix_coo(*args, **kwargs)
-        # distributed masses (cells)
-        blocks = self.cellblocks(inclusive=True)
-        def foo(b): return b.celldata.mass_matrix()
-        return np.vstack(list(map(foo, blocks)))
-
     def penalty_matrix_coo(self, *args, eliminate_zeros=True,
                            sum_duplicates=True, ensure_comp=False,
                            distribute=False, **kwargs):
@@ -155,7 +166,7 @@ class FemMesh(PolyData):
         A penalty matrix that enforces Dirichlet boundary conditions. 
         Returns a scipy sparse matrix in coo format.
         """
-        fixity = self.root().pointdata.fixity.to_numpy()
+        fixity = self.root().pointdata.fixity
         K_coo = fem_penalty_matrix_coo(values=fixity, eliminate_zeros=eliminate_zeros,
                                        sum_duplicates=sum_duplicates)
         return K_coo.tocoo()
@@ -179,28 +190,34 @@ class FemMesh(PolyData):
     @squeeze(True)
     def load_vector(self, *args, **kwargs):
         # concentrated nodal loads
-        nodal_data = self.root().pointdata.loads.to_numpy()
+        nodal_data = self.root().pointdata.loads
         nodal_data = atleast3d(nodal_data, back=True)  # (nP, nDOF, nRHS)
-        f_p = fem_load_vector(values=nodal_data, squeeze=False)
+        res = fem_load_vector(values=nodal_data, squeeze=False)
         # cells
         blocks = list(self.cellblocks(inclusive=True))
         # body loads
         def foo(b): return b.celldata.body_load_vector(squeeze=False)
-        f_c = np.sum(list(map(foo, blocks)), axis=0)
+        try:
+            res += np.sum(list(map(foo, blocks)), axis=0)
+        except Exception:
+            pass
         # strain loads
         def foo(b): return b.celldata.strain_load_vector(squeeze=False)
-        f_s = np.sum(list(map(foo, blocks)), axis=0)
-        return f_p + f_c + f_s
+        try:
+            res += np.sum(list(map(foo, blocks)), axis=0)
+        except Exception:
+            pass
+        return res
 
     def prostproc_dof_solution(self, *args, **kwargs):
         blocks = self.cellblocks(inclusive=True)
-        dofsol = self.root().pointdata.dofsol.to_numpy()
+        dofsol = self.root().pointdata.dofsol
         def foo(b): return b.celldata.prostproc_dof_solution(dofsol=dofsol)
         list(map(foo, blocks))
 
     @squeeze(True)
     def nodal_dof_solution(self, *args, flatten=False, **kwargs):
-        dofsol = self.root().pointdata.dofsol.to_numpy()
+        dofsol = self.root().pointdata.dofsol
         if flatten:
             if len(dofsol.shape) == 2:
                 return dofsol.flatten()
@@ -255,7 +272,7 @@ class FemMesh(PolyData):
 
     @squeeze(True)
     def reaction_forces(self, *args, flatten=False, squeeze=True, **kwargs):
-        x = self.root().pointdata.reactions.to_numpy()
+        x = self.root().pointdata.reactions
         if flatten:
             if len(x.shape) == 2:
                 return x.flatten()
@@ -267,7 +284,7 @@ class FemMesh(PolyData):
 
     @squeeze(True)
     def nodal_forces(self, *args, flatten=False, **kwargs):
-        x = self.root().pointdata.forces.to_numpy()
+        x = self.root().pointdata.forces
         if flatten:
             if len(x.shape) == 2:
                 return x.flatten()
@@ -286,11 +303,6 @@ class FemMesh(PolyData):
         blocks = self.cellblocks(inclusive=True)
         def foo(b): return b.celldata.stresses_at_centers(*args, **kwargs)
         return np.squeeze(np.vstack(list(map(foo, blocks))))
-
-    def element_dof_numbering(self, *args, **kwargs):
-        blocks = self.cellblocks(inclusive=True)
-        def foo(b): return b.celldata.global_dof_numbering()
-        return np.vstack(list(map(foo, blocks)))
 
     @property
     def model(self):
@@ -314,11 +326,3 @@ class FemMesh(PolyData):
 
     def postprocess(self, *args, **kwargs):
         pass
-
-
-def fem_mesh_from_obj(*args, **kwargs):
-    pass
-
-
-if __name__ == '__main__':
-    pass

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-from dewloosh.geom.cells import T3 as Triangle
+from dewloosh.mesh.cells import T3 as Triangle
 
 from ..elem import FiniteElement
 from ..model.membrane import Membrane

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from dewloosh.math.numint import GaussPoints as Gauss
 
-from dewloosh.geom.cells import H8 as HexaHedron
+from dewloosh.mesh.cells import H8 as HexaHedron
 
 from ..model.solid3d import Solid3d
 from ..elem import FiniteElement
@@ -18,7 +18,3 @@ class H8(HexaHedron, Solid3d, FiniteElement):
         },
         'reduced': Gauss(1, 1, 1)
     }
-
-
-if __name__ == '__main__':
-    pass

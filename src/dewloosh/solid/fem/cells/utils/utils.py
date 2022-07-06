@@ -6,7 +6,7 @@ from numpy import ndarray
 
 from dewloosh.math.linalg import inv
 
-from dewloosh.geom.utils import cells_coords
+from dewloosh.mesh.utils import cells_coords
 
 __cache = True
 

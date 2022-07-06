@@ -7,10 +7,10 @@ from dewloosh.math.linalg.tensor3333 import ComplianceTensor
 __all__ = ['smat_sym_ortho_3d', 'cmat_sym_ortho_3d']
 
 imap_ref_ortho_3D = ComplianceTensor.__imap__
-upper = lambda ij : (ij[1], ij[0]) if ij[0] >= ij[1] else (ij[0], ij[1])
+def upper(ij): return (ij[1], ij[0]) if ij[0] >= ij[1] else (ij[0], ij[1])
 
 
-def smat_sym_ortho_3d(*args, imap : dict=None, simplify=True, **subs):
+def smat_sym_ortho_3d(*args, imap: dict = None, simplify=True, **subs):
     """
     Reurns the compliance matrix for a 3d orthotropic
     material in symbolic form.
@@ -19,7 +19,7 @@ def smat_sym_ortho_3d(*args, imap : dict=None, simplify=True, **subs):
     ----------
     imap : dict, optional
         Index map. Default is None.
-    
+
     subs : dict, optional
         A dictionary of parameters to substitute.
 
@@ -49,8 +49,8 @@ def smat_sym_ortho_3d(*args, imap : dict=None, simplify=True, **subs):
     if imap is None:
         return S
     assert len(imap) == 6, "Indexmap must contain 6 indices."
-    invmap = {upper(v) : k for k, v in imap.items()}
-    trmap = {i : invmap[imap_ref_ortho_3D[i]] for i in range(6)}
+    invmap = {upper(v): k for k, v in imap.items()}
+    trmap = {i: invmap[imap_ref_ortho_3D[i]] for i in range(6)}
     S_new = sy.zeros(6, 6)
     for inds in trmap.items():
         S_new[inds[1], :] = swap1d(S[inds[0], :], inds)
@@ -59,7 +59,7 @@ def smat_sym_ortho_3d(*args, imap : dict=None, simplify=True, **subs):
     return S_new
 
 
-def cmat_sym_ortho_3d(*args, imap : dict=None, simplify=True, **subs):
+def cmat_sym_ortho_3d(*args, imap: dict = None, simplify=True, **subs):
     """
     Reurns the stiffness matrix for a 3d orthotropic
     material in symbolic form.
@@ -68,7 +68,7 @@ def cmat_sym_ortho_3d(*args, imap : dict=None, simplify=True, **subs):
     ----------
     imap : dict, optional
         Index map. Default is None.
-    
+
     subs : dict, optional
         A dictionary of parameters to substitute.
 
@@ -85,10 +85,10 @@ def cmat_sym_ortho_3d(*args, imap : dict=None, simplify=True, **subs):
     res = smat_sym_ortho_3d(*args, imap=imap, simplify=False, **subs).inv()
     if simplify:
         res.simplify()
-    return res 
+    return res
 
 
-def swap1d(a : sy.Matrix, inds : tuple):
+def swap1d(a: sy.Matrix, inds: tuple):
     a.col_swap(*inds)
     return a
 

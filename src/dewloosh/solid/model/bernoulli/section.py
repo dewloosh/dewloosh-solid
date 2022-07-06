@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-from dewloosh.core.abc.wrap import Wrapper
-from dewloosh.geom.utils import centralize
+from dewloosh.core.wrapping import Wrapper
+from dewloosh.mesh.utils import centralize
 
 
 class BeamSection(Wrapper):

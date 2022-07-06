@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from dewloosh.math.numint import GaussPoints as Gauss
 
-from dewloosh.geom.cells import Q9 as Quadrilateral
+from dewloosh.mesh.cells import Q9 as Quadrilateral
 
 from ..elem import FiniteElement
 from ..model.membrane import Membrane

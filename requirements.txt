@@ -1,2 +1,2 @@
-dewloosh.geom
+dewloosh.mesh
 #pylatex

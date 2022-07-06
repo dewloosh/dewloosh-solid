@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-from dewloosh.core.abc.wrap import Wrapper
+from dewloosh.core.wrapping import Wrapper
 
 from dewloosh.math import squeeze
 from dewloosh.math.array import repeat
 
-from ..mesh import FemMesh, fem_mesh_from_obj
+from ..mesh import FemMesh
 from ..femsolver import FemSolver as Solver
 
 
@@ -50,7 +50,7 @@ class Structure(Wrapper):
 
     def __init__(self, *args, mesh: FemMesh = None, **kwargs):
         if not isinstance(mesh, FemMesh):
-            mesh = fem_mesh_from_obj(mesh)
+            raise NotImplementedError
         super().__init__(wrap=mesh)
         assert mesh is not None, "Some kind of a finite element mesh must be \
             provided with keyword 'mesh'!"
@@ -195,7 +195,3 @@ class Structure(Wrapper):
     @squeeze(True)
     def internal_forces(self, *args, flatten=False, squeeze=True, **kwargs):
         return self.mesh.internal_forces(*args, flatten=flatten, squeeze=False, **kwargs)
-
-
-if __name__ == '__main__':
-    pass

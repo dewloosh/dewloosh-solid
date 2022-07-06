@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-from dewloosh.geom.cells import T6 as Triangle
+from dewloosh.mesh.cells import T6 as Triangle
 
 from dewloosh.solid.fem.elem import FiniteElement
 

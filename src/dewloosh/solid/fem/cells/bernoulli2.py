@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from dewloosh.math.numint import GaussPoints as Gauss
 
-from dewloosh.geom.cells import L2 as Line
+from dewloosh.mesh.cells import L2 as Line
 
 from .bernoulli import BernoulliBase as Bernoulli
 

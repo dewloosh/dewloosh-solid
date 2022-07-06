@@ -129,4 +129,3 @@ def material_stiffness_matrices_45(C_45: np.ndarray, angles: np.ndarray):
     for iL in prange(nL):
         C_45_g[iL] = T_45[iL] @ C_45[iL] @ R_45_inv @ T_45[iL].T @ R_45
     return C_45_g
-

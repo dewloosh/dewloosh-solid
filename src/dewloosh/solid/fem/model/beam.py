@@ -4,10 +4,7 @@ import numpy as np
 from numpy import ndarray
 from typing import Union
 
-from dewloosh.math.linalg import ReferenceFrame, Vector
-
 from .solid import Solid
-
 
 __cache = True
 
@@ -55,9 +52,16 @@ def strain_displacement_matrix(gdshp: ndarray):
 @njit(nogil=True, parallel=True, cache=__cache)
 def strain_displacement_matrix_bulk(gdshp: ndarray):
     """
-    gdshp (nE, nP, nNE, nDOF=6, 3)
-    ---
-    (nE, nP, 4, nNODE * 6)
+    Parameters
+    ----------
+    gdshp : numpy.ndarray
+        Numpy float array of shape (nE, nP, nNE, nDOF=6, 3)
+
+    Returns
+    -------
+    numpy.ndarray
+        NumPy float array of shape (nE, nP, 4, nNODE * 6)
+
     """
     nE, nP, nNE = gdshp.shape[:3]
     B = np.zeros((nE, nP, 4, nNE * 6), dtype=gdshp.dtype)
@@ -65,38 +69,6 @@ def strain_displacement_matrix_bulk(gdshp: ndarray):
         for iP in prange(nP):
             B[iE, iP] = strain_displacement_matrix(gdshp[iE, iP])
     return B
-
-
-"""@njit(nogil=True, cache=__cache)
-def nodal_dcm(dcm: ndarray):
-    nE = dcm.shape[0]
-    res = np.zeros((nE, 6, 6), dtype=dcm.dtype)
-    res[:, :3, :3] = dcm
-    res[:, 3:, 3:] = dcm
-    return res"""
-
-
-@njit(nogil=True, parallel=True, cache=__cache)
-def nodal_dcm(dcm: ndarray, N=2):
-    nE = dcm.shape[0]
-    res = np.zeros((nE, 3 * N, 3 * N), dtype=dcm.dtype)
-    for i in prange(N):
-        _i = i * 3
-        i_ = _i + 3
-        res[:, _i:i_, _i:i_] = dcm
-    return res
-
-
-@njit(nogil=True, parallel=True, cache=__cache)
-def element_dcm(nodal_dcm: ndarray, nNE: int = 2):
-    nE = nodal_dcm.shape[0]
-    nEVAB = nNE * 6
-    res = np.zeros((nE, nEVAB, nEVAB), dtype=nodal_dcm.dtype)
-    for iNE in prange(nNE):
-        i0, i1 = 6*iNE, 6 * (iNE+1)
-        for iE in prange(nE):
-            res[iE, i0: i1, i0: i1] = nodal_dcm[iE]
-    return res
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
@@ -129,38 +101,13 @@ def calculate_shear_forces(dofsol: ndarray, forces: ndarray,
 
 class BernoulliBeam(Solid):
 
-    __dofs__ = ('UX', 'UY', 'UZ', 'ROTX', 'ROTY', 'ROTZ')
-    
+    dofs = ('UX', 'UY', 'UZ', 'ROTX', 'ROTY', 'ROTZ')
+
     NDOFN = 6
     NSTRE = 4
-    
+
     def model_stiffness_matrix(self, *args, **kwargs):
         return self.material_stiffness_matrix()
-
-    def direction_cosine_matrix(self, *args, source=None, target=None, N=None, **kwargs):
-        N = self.__class__.NNODE if N is None else N
-        frames = self.frames.to_numpy()  # dcm_G_L
-        dcm = element_dcm(nodal_dcm(frames), N)
-        if source is not None:
-            if isinstance(source, str):
-                if source == 'global':
-                    S = ReferenceFrame(dim = dcm.shape[-1]) 
-                    return ReferenceFrame(dcm).dcm(source=S)
-            elif isinstance(source, ReferenceFrame):
-                assert source.dim == 2
-                return ReferenceFrame(dcm).dcm(source=source)
-            else:
-                raise NotImplementedError
-        elif target is not None:
-            if isinstance(target, str):
-                if target == 'global':
-                    return ReferenceFrame(dcm)
-            elif isinstance(target, ReferenceFrame):
-                assert target.dim == 2
-                return ReferenceFrame(dcm).dcm(target=target)
-            else:
-                raise NotImplementedError
-        return dcm
 
     def strain_displacement_matrix(self, pcoords: ArrayOrFloat = None, *args,
                                    jac=None, rng=None, dshp=None, **kwargs):
@@ -168,23 +115,18 @@ class BernoulliBeam(Solid):
         gdshp = self.shape_function_derivatives(
             pcoords, rng=rng, jac=jac, dshp=dshp)
         return strain_displacement_matrix_bulk(gdshp)
-    
+
     def masses(self, *args, values=None, **kwargs):
         if isinstance(values, np.ndarray):
             dens = values
         else:
-            dens = self.db.densities.to_numpy()
+            dens = self.db.density
         try:
             areas = self.areas()
         except Exception:
             areas = np.ones_like(dens)
         lengths = self.lengths()
         return areas * dens * lengths
-    
+
     def mass(self, *args, **kwargs):
         return np.sum(self.masses(*args, **kwargs))
-
-    
-
-
-    

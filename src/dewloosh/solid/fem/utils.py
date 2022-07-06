@@ -499,6 +499,28 @@ def transform_stiffness(K: ndarray, dcm: ndarray):
 
 
 @njit(nogil=True, parallel=True, cache=__cache)
+def element_dofmap_bulk(dofmap: ndarray, nDOF: int, nNODE: int):
+    nDOF_ = dofmap.shape[0]
+    res = np.zeros(nNODE * nDOF_, dtype=dofmap.dtype)
+    for i in prange(nNODE):
+        for j in prange(nDOF_):
+            res[i*nDOF_ + j] = i*nDOF + dofmap[j]
+    return res
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
+def expand_stiffness_bulk(K_in: ndarray, K_out: ndarray, dofmap: ndarray):
+    """
+    Expands the local stiffness matrix into a standard form.
+    """
+    nDOF = dofmap.shape[0]    
+    for i in prange(nDOF):
+        for j in prange(nDOF):
+            K_out[:, dofmap[i], dofmap[j]] = K_in[:, i, j]
+    return K_out
+
+
+@njit(nogil=True, parallel=True, cache=__cache)
 def pull_submatrix(A, r, c):
     nR = r.shape[0]
     nC = c.shape[0]

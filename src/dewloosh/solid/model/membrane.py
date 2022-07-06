@@ -100,6 +100,3 @@ class Membrane(Surface):
         self.ABDS = super().stiffness_matrix()
         self.SDBA = np.linalg.inv(self.ABDS)
         return self.ABDS
-
-if __name__ == "__main__":
-    pass

@@ -5,15 +5,15 @@ from numpy import sin, cos, ndarray, pi as PI
 from numba import njit, prange
 from collections import Iterable
 
-from dewloosh.core.types import Library
-from dewloosh.core.types.defaultdict import parsedicts_addr
-from dewloosh.core.tools import allinkwargs, popfromdict, float_to_str_sig
+from dewloosh.core import DeepDict
+from dewloosh.core.tools.dtk import parsedicts_addr
+from dewloosh.core.tools import allinkwargs, popfromkwargs, float_to_str_sig
 
 from dewloosh.math import squeeze
 from dewloosh.math.array import atleast1d, atleast2d, atleast3d
 
 
-class LoadGroup(Library):
+class LoadGroup(DeepDict):
     _typestr_ = None
 
     def __init__(self, *args, Navier=None, **kwargs):
@@ -49,7 +49,7 @@ class LoadGroup(Library):
             json.dump(self.to_dict(), f, indent=indent)
 
     @classmethod
-    def load(cls, path: str = None, **kwargs):
+    def from_json(cls, path: str = None, **kwargs):
         if path is not None:
             with open(path, 'r') as f:
                 d = json.load(f)
@@ -161,10 +161,10 @@ class RectLoad(LoadGroup):
                 x0, y0, w, h = np.array(d.pop('region'))
                 points = np.array([[x0, y0], [x0 + w, y0 + h]])
             elif allinkwargs(['xy', 'w', 'h'], **d):
-                (x0, y0), w, h = popfromdict(['xy', 'w', 'h'], d)
+                (x0, y0), w, h = popfromkwargs(['xy', 'w', 'h'], d)
                 points = np.array([[x0, y0], [x0 + w, y0 + h]])
             elif allinkwargs(['center', 'w', 'h'], **d):
-                (xc, yc), w, h = popfromdict(['center', 'w', 'h'], d)
+                (xc, yc), w, h = popfromkwargs(['center', 'w', 'h'], d)
                 points = np.array([[xc - w/2, yc - h/2],
                                    [xc + w/2, yc + h/2]])
         except Exception as e:
@@ -377,31 +377,3 @@ def points_to_region(points: ndarray):
     xmax = points[:, 0].max()
     ymax = points[:, 1].max()
     return xmin, ymin, xmax - xmin, ymax - ymin
-
-
-if __name__ == '__main__':
-
-    loads = {
-        'LG1': {
-            'LC1': {
-                'type': 'rect',
-                'points': [[0, 0], [10, 10]],
-                'value': [0, 0, -10],
-            },
-            'LC2': {
-                'type': 'rect',
-                'region': [5., 6., 12., 10.],
-                'value': [0, 0, -2],
-            }
-        },
-        'LG2': {
-            'LC3': {
-                'type': 'point',
-                'point': [10, 10],
-                'value': [0, 0, -10],
-            }
-        },
-        'dummy1': 10
-    }
-
-    LC = LoadGroup.from_dict(loads)

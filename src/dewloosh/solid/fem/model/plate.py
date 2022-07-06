@@ -69,7 +69,9 @@ def model_stiffness_iso_homg(C: ndarray, t: ndarray):
 
 
 class Plate(Surface):
-
+    
+    dofs = ('UZ', 'ROTY', 'ROTZ')
+    
     NDOFN = _NDOFN_
     NSTRE = _NSTRE_
 

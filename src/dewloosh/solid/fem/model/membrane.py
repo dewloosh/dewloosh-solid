@@ -61,7 +61,9 @@ def model_stiffness_iso_homg(C: ndarray, t: ndarray):
 
 
 class Membrane(Surface):
-
+    
+    dofs = ('UX', 'UY')
+    
     NDOFN = _NDOFN_
     NSTRE = _NSTRE_
 
@@ -84,6 +86,8 @@ class Membrane(Surface):
     
 
 class DrillingMembrane(Membrane):
+    
+    dofs = ('UX', 'UY', 'ROTZ')
 
     NDOFN = 3
     NSTRE = _NSTRE_

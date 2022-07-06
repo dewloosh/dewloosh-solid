@@ -5,8 +5,8 @@ from numba import njit, prange
 
 from dewloosh.math.array import atleast2d
 
-from dewloosh.geom.cells import T3 as Triangle
-from dewloosh.geom.tri.triutils import area_tri
+from dewloosh.mesh.cells import T3 as Triangle
+from dewloosh.mesh.tri.triutils import area_tri
 
 from ..model.membrane import Membrane
 from ..elem import FiniteElement

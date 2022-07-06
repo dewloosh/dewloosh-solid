@@ -3,7 +3,7 @@ import numpy as np
 
 from dewloosh.math.linalg import normalize as norm
 
-from dewloosh.geom.utils import distances_of_points
+from dewloosh.mesh.utils import distances_of_points
 
 
 def plot_path(ax, data, coords, *args, 

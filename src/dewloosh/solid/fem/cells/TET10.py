@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-from dewloosh.geom.cells import TET10 as Tetra
+from dewloosh.mesh.cells import TET10 as Tetra
 
 from ..model.solid3d import Solid3d
 from ..elem import FiniteElement
@@ -24,7 +24,3 @@ class TET10(Tetra, Solid3d, FiniteElement):
     quadrature = {
         'full': (gauss_pos_nat, gauss_weights),
     }
-
-
-if __name__ == '__main__':
-    pass

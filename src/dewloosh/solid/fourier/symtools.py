@@ -17,17 +17,3 @@ def inv_sym_3x3(m: Matrix, as_adj_det=False):
         return detP.subs(subs), adjP.subs(subs)
     else:
         return invP.subs(subs)
-
-
-"""
-from sympy.utilities.lambdify import lambdify
-import numpy as np
-f_det3x3 = lambdify([P_], detP)
-f_adj3x3 = lambdify([P_], adjP)
-f_inv3x3 = lambdify([P_], invP)
-
-arr = np.eye(3) * 3
-f_det3x3(arr)
-f_adj3x3(arr)
-f_inv3x3(arr)
-"""

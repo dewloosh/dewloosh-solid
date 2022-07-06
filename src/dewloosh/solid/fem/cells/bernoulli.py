@@ -31,7 +31,6 @@ class BernoulliBase(BernoulliBeam):
                               rng: Iterable = None, lengths=None,
                               **kwargs) -> ndarray:
         """
-        ---
         (nE, nP, nNE=2, nDOF=6)
         """
         rng = np.array([-1, 1]) if rng is None else np.array(rng)
@@ -45,7 +44,6 @@ class BernoulliBase(BernoulliBeam):
                                    jac: ndarray = None, dshp: ndarray = None,
                                    lengths=None, **kwargs) -> ndarray:
         """
-        ---
         (nE, nP, nNE=2, nDOF=6, 3)
         """
         lengths = self.lengths() if lengths is None else lengths
@@ -66,7 +64,6 @@ class BernoulliBase(BernoulliBeam):
     def shape_function_matrix(self, pcoords=None, *args, rng=None,
                               lengths=None, **kwargs) -> ndarray:
         """
-        ---
         (nE, nP, nDOF, nDOF * nNODE)
         """
         pcoords = atleast1d(np.array(pcoords) if isinstance(
@@ -80,7 +77,6 @@ class BernoulliBase(BernoulliBeam):
 
     def integrate_body_loads(self, values: ndarray) -> ndarray:
         """
-        ---
         values (nE, nNE * nDOF, nRHS)
         """
         values = atleastnd(values, 3, back=True)
@@ -130,25 +126,26 @@ class BernoulliBase(BernoulliBeam):
         lumping : 'direct', None or False
         frmt : only if lumping is specified
         """
+        dbkey = self.__class__._attr_map_['M']
         if is_none_or_false(lumping):
             return super().mass_matrix(*args, squeeze=False, **kwargs)
         if lumping == 'direct':
-            dens = self.db.densities.to_numpy()
+            dens = self.db.density
             try:
                 areas = self.areas()
             except Exception:
                 areas = np.ones_like(dens)
             lengths = self.lengths()
-            topo = self.db.nodes.to_numpy()
+            topo = self.topology()
             ediags = dlump(dens, lengths, areas, topo, alpha)
             if frmt == 'full':
                 N = ediags.shape[-1]
                 M = np.zeros((ediags.shape[0], N, N))
                 inds = np.arange(N)
                 M[:, inds, inds] = ediags
-                self.db['M'] = M
+                self.db[dbkey] = M
                 return M
             elif frmt == 'diag':
-                self.db['M'] = ediags
+                self.db[dbkey] = ediags
                 return ediags
         raise RuntimeError("Lumping mode not recognized :(")

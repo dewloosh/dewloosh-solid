@@ -2,10 +2,10 @@
 from dewloosh.math.linalg.vector import Vector
 from dewloosh.math.linalg import linspace, Vector
 from dewloosh.solid.fem.cells import B2 as Bernoulli
-from dewloosh.geom.space import StandardFrame, \
+from dewloosh.mesh.space import StandardFrame, \
     PointCloud, frames_of_lines
 from dewloosh.solid.fem import LineMesh
-from dewloosh.optimus.fem import Structure
+from dewloosh.solid.fem import Structure
 from dewloosh.math.array import repeat
 from hypothesis import given, settings, HealthCheck, \
     strategies as st

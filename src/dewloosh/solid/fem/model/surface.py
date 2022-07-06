@@ -1,24 +1,12 @@
 # -*- coding: utf-8 -*-
 from dewloosh.math.array import atleast2d
 
-from dewloosh.geom.utils import cells_coords
-
 from ..utils import topo_to_gnum
 from .solid import Solid
 from .utils import stresses_from_strains
 
 
 class Surface(Solid):
-
-    # !TODO : this should be at geometry
-    def local_coordinates(self, *args, topo=None, **kwargs):
-        # !FIXME : this is missing transformation
-        topo = self.nodes.to_numpy() if topo is None else topo
-        coords = self.pointdata.x.to_numpy()
-        return cells_coords(coords[:, :2], topo)
-
-    def thickness(self, *args, **kwargs):
-        return self._wrapped.t.to_numpy()
 
     def model_stiffness_matrix(self, *args, **kwargs):
         C = self.material_stiffness_matrix()

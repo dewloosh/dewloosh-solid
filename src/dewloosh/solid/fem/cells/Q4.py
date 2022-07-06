@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+from numpy import ndarray
 from numba import njit
 
 from dewloosh.math.numint import GaussPoints as Gauss
 
-from dewloosh.geom.tri.triutils import area_tri_bulk
-from dewloosh.geom.utils import cells_coords
-from dewloosh.geom.cells import Q4 as Quadrilateral
+from dewloosh.mesh.tri.triutils import area_tri_bulk
+from dewloosh.mesh.utils import cells_coords
+from dewloosh.mesh.cells import Q4 as Quadrilateral
 
 from ..elem import FiniteElement
+from ..meta import ABCFiniteElement as ABC
 from ..model.membrane import Membrane
 from ..model.plate import Plate
 
@@ -24,7 +26,7 @@ def area_Q4_bulk(ecoords : np.ndarray):
     return res
 
 
-class Q4M(Quadrilateral, Membrane, FiniteElement):
+class Q4M(ABC, Membrane, Quadrilateral, FiniteElement):
     
     qrule = 'full'
     quadrature = {
@@ -38,12 +40,13 @@ class Q4M(Quadrilateral, Membrane, FiniteElement):
         
     def areas(self, *args, coords=None, topo=None, **kwargs):
         """This shadows the original geometrical implementation."""
-        coords = self.pointdata.x.to_numpy() if coords is None else coords
-        topo = self.nodes.to_numpy() if topo is None else topo
+        if coords is None:
+            coords = self.container.root().coords()
+        topo = self.topology().to_numpy() if topo is None else topo
         return area_Q4_bulk(cells_coords(coords, topo))
-    
+       
 
-class Q4P(Quadrilateral, Plate, FiniteElement):
+class Q4P(ABC, Plate, Quadrilateral, FiniteElement):
     
     qrule = 'selective'
     quadrature = {
@@ -57,8 +60,9 @@ class Q4P(Quadrilateral, Plate, FiniteElement):
         
     def areas(self, *args, coords=None, topo=None, **kwargs):
         """This shadows the original geometrical implementation."""
-        coords = self.pointdata.x.to_numpy() if coords is None else coords
-        topo = self.nodes.to_numpy() if topo is None else topo
+        if coords is None:
+            coords = self.container.root().coords()
+        topo = self.topology().to_numpy() if topo is None else topo
         self.local_coordinates(topo=topo)
         return area_Q4_bulk(cells_coords(coords, topo))
     

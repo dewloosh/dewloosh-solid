@@ -3,11 +3,12 @@ import numpy as np
 from numba import njit, prange
 from collections import Iterable
 
-from dewloosh.math.array import ascont, \
-    atleast1d, atleast2d, atleast3d, atleast4d
-    
-from .utils import layers_of_points, z_to_shear_factors, \
-    points_of_layers, material_stiffness_matrices, shear_correction_data
+from dewloosh.math.array import (ascont, atleast1d, atleast2d,
+                                 atleast3d, atleast4d)
+
+from ..utils import layers_of_points, points_of_layers
+from .utils import (z_to_shear_factors, shear_correction_data,
+                    material_stiffness_matrices)
 
 __cache = True
 
@@ -241,8 +242,3 @@ def pproc_Mindlin_3D(ABDS: np.ndarray,
         return tuple(map(np.squeeze, res3d))
     else:
         return res3d
-
-
-
-if __name__ == '__main__':
-    pass

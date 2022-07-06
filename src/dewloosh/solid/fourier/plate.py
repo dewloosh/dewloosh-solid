@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from typing import Iterable
 from numpy import swapaxes as swap
 from time import time
 
-from .loads import LoadGroup, RectLoad, PointLoad
+from .loads import LoadGroup
 from .preproc import lhs_Navier
 from .postproc import postproc
 from .proc import linsolve
@@ -13,10 +12,10 @@ from .proc import linsolve
 class RectangularPlate:
 
     def __init__(self, size: tuple, shape: tuple, *args,
-                 D: np.ndarray = None, S: np.ndarray=None,
+                 D: np.ndarray = None, S: np.ndarray = None,
                  Winkler=None, Pasternak=None, loads=None,
-                 Hetenyi=None, model='mindlin', mesh=None, 
-                 Bernoulli: bool=None, Navier=True, **kwargs):
+                 Hetenyi=None, model='mindlin', mesh=None,
+                 Bernoulli: bool = None, Navier=True, **kwargs):
         assert Navier is True, "Only Navier boundary conditions are covered at the moment."
         self.size = np.array(size, dtype=float)
         self.shape = np.array(shape, dtype=int)
@@ -33,19 +32,10 @@ class RectangularPlate:
         else:
             self.loads = LoadGroup(Navier=self)
         self._summary = {}
-        self.Bernoulli = not self.model in ['m', 'mindlin'] if Bernoulli is None else Bernoulli
-        assert isinstance(self.Bernoulli, bool), "The keyword argument `Bernoulli` must be `True` or `False`."
-
-    def add_point_load(self, name: str, pos: Iterable, value: Iterable,
-                       **kwargs):
-        raise NotImplementedError
-        file = PointLoad(key=name, point=pos, value=value, **kwargs)
-        return self.loads.new_file(file)
-
-    def add_rect_load(self, name: str, **kwargs):
-        raise NotImplementedError
-        file = RectLoad(key=name, **kwargs)
-        return self.loads.new_file(file)
+        self.Bernoulli = not self.model in [
+            'm', 'mindlin'] if Bernoulli is None else Bernoulli
+        assert isinstance(
+            self.Bernoulli, bool), "The keyword argument `Bernoulli` must be `True` or `False`."
 
     def add_loads_from_dict(self, d: dict, *args, **kwargs):
         self.loads = LoadGroup.from_dict(d)
@@ -59,7 +49,7 @@ class RectangularPlate:
         D = self.D
         if self.Bernoulli and self.model in ['m', 'mindlin']:
             D = np.full(self.D.shape, 1e12)
-        LHS = lhs_Navier(self.size, self.shape, D=D, S=self.S, 
+        LHS = lhs_Navier(self.size, self.shape, D=D, S=self.S,
                          model=self.model, squeeze=False)
         RHS = list(lc.rhs() for lc in LC)
         [setattr(lc, '_rhs', rhs) for lc, rhs in zip(LC, RHS)]
@@ -98,7 +88,3 @@ class RectangularPlate:
         res = np.squeeze(res)
         if cleanup:
             [delattr(lc, self._key_coeff) for lc in LC]
-
-
-if __name__ == '__main__':
-    pass

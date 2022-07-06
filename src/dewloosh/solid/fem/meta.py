@@ -1,17 +1,25 @@
 # -*- coding: utf-8 -*-
 from abc import abstractmethod
 from inspect import signature, Parameter
+import numpy as np
 
-from dewloosh.core.abc.meta import ABCMeta_Weak
-
-from dewloosh.geom.cell import PolyCell
+from dewloosh.mesh.abc import ABCMeta_MeshData
+from dewloosh.mesh.cell import PolyCell
 
 from copy import deepcopy
 from functools import partial
 from typing import Callable, Any
 
 
-class FemMixin:    
+dofs = ('UX', 'UY', 'UZ', 'ROTX', 'ROTY', 'ROTZ')
+dofmap = {d : i for i, d in enumerate(dofs)}
+
+
+class FemMixin:
+    
+    dofs = ()
+    dofmap = ()
+            
     # must be reimplemented
     NNODE: int = None  # number of nodes, normally inherited
 
@@ -47,6 +55,9 @@ class FemMixin:
     @property
     def db(self):
         return self._wrapped
+    
+    def topology(self):
+        raise NotImplementedError
     
     # !TODO : this should be implemented at geometry
     @classmethod
@@ -123,17 +134,48 @@ class FemMixin:
     def weights(self, *args, **kwargs):
         raise NotImplementedError
     
+    def _postproc_local_internal_forces(self, forces, *args, points, rng, cells, **kwargs):
+        """
+        The aim of this function os to guarantee a standard shape of output, that contains
+        values for each of the 6 internal force compoents, irrespective of the kinematical
+        model being used.
+
+        Example use case : the Bernoulli beam element, where, as a consequence of the absence
+        of shear forces, there are only 4 internal force components, and the shear forces
+        must be calculated a-posteriori.
+
+        Parameters
+        ----------
+        forces : numpy array of shape (nE, nP, nSTRE, nRHS)
+            4d float array of internal forces for many elements, evaluation points,
+            and load cases. The number of force components (nSTRE) is dictated by the
+            reduced kinematical model (eg. 4 for the Bernoulli beam).
+
+        dofsol (nE, nEVAB, nRHS)
+
+        Notes
+        -----
+        Arguments are based on the reimplementation in the Bernoulli base element.
+        
+        Returns
+        -------
+        numpy.ndarray 
+            shape : (nE, nP, 6, nRHS)
+        
+        """
+        return forces
+    
 
 
 class FemModel(FemMixin):
-    __dofs__ = ()
+    ...
         
 
 class FemModel1d(FemModel):
     ...
 
 
-class MetaFiniteElement(ABCMeta_Weak):
+class MetaFiniteElement(ABCMeta_MeshData):
     """
     Python metaclass for safe inheritance. Throws a TypeError
     if a method tries to shadow a definition in any of the base
@@ -143,27 +185,17 @@ class MetaFiniteElement(ABCMeta_Weak):
     def __init__(self, name, bases, namespace, *args, **kwargs):
         super().__init__(name, bases, namespace, *args, **kwargs)
 
-    def __new__(metaclass, name, bases, namespace, *args, **kwargs): 
-        """cls_methods = metaclass._get_cls_methods(namespace)
-        cls_abc = metaclass._get_cls_abstracts(namespace)
-        base_methods = metaclass._get_base_methods(bases)
-        base_abc = metaclass._get_base_abstracts(bases)"""
-        
-        # check if all abstract methods are implemented
-        base_abc = metaclass._get_base_abstracts(bases)            
-        
-        # check if all abstract methods of base classes are implemented
-        # by this class or any other class in the MRO hierarchy.
-        
-                
-        cls = super().__new__(metaclass, name, bases, namespace, *args,
-                              **kwargs)
-        
+    def __new__(metaclass, name, bases, namespace, *args, **kwargs):     
+        cls = super().__new__(metaclass, name, bases, namespace, *args, **kwargs)    
         for base in bases:                
             if issubclass(base, PolyCell):
                 cls.Geometry = base  
             elif issubclass(base, FemModel):
-                cls.Model = base    
+                cls.Model = base
+                cls.dofs = base.dofs
+                cls.NDOFN = len(cls.dofs)
+                if len(cls.dofs) > 0:
+                    cls.dofmap = np.array([dofmap[d] for d in cls.dofs], dtype=int)
         return cls
     
 
@@ -173,5 +205,7 @@ class ABCFiniteElement(metaclass=MetaFiniteElement):
     inheritance.
     """
     __slots__ = ()
+    dofs = ()
+    dofmap = ()
     
     
