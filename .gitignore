@@ -132,3 +132,4 @@ dmypy.json
 .code-workspace
 
 *.gz
+ws.code-workspace
