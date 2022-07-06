@@ -11,6 +11,9 @@
 		},
 		{
 			"path": "..\\dewloosh-core"
+		},
+		{
+			"path": "..\\sigmaepsilon"
 		}
 	],
 	"settings": {
