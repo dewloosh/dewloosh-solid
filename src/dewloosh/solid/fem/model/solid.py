@@ -19,8 +19,8 @@ class Solid(FemModel):
     def material_stiffness_matrix(self, *args, **kwargs):
         return self._wrapped.mat.to_numpy()
 
-    def model_stiffness_matrices(self, *args, **kwargs):
-        return self.material_stiffness_matrices()
+    def model_stiffness_matrix(self, *args, **kwargs):
+        return self.material_stiffness_matrix()
 
     @classmethod
     def strains_at(cls, *args,  **kwargs):
