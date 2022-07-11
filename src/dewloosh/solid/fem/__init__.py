@@ -3,4 +3,4 @@ from .mesh import FemMesh
 from .linemesh import LineMesh, BernoulliFrame
 from .structure import Structure
 from .pointdata import PointData
-from .celldata import CellData
+from .cells.celldata import CellData

@@ -7,7 +7,7 @@ from dewloosh.math.array import atleast3d
 from dewloosh.mesh import PolyData
 
 from .pointdata import PointData
-from .celldata import CellData
+from .cells.celldata import CellData
 from .preproc import fem_load_vector, fem_penalty_matrix_coo, \
     fem_nodal_mass_matrix_coo
 

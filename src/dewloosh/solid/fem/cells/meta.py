@@ -190,11 +190,11 @@ class MetaFiniteElement(ABCMeta_MeshData):
         for base in bases:                
             if issubclass(base, PolyCell):
                 cls.Geometry = base  
-            elif issubclass(base, FemModel):
-                cls.Model = base
-                cls.dofs = base.dofs
-                cls.NDOFN = len(cls.dofs)
-                if len(cls.dofs) > 0:
+            if issubclass(base, FemModel):
+                if len(base.dofs) > 0:
+                    cls.Model = base
+                    cls.dofs = base.dofs
+                    cls.NDOFN = len(cls.dofs)
                     cls.dofmap = np.array([dofmap[d] for d in cls.dofs], dtype=int)
         return cls
     

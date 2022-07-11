@@ -524,7 +524,3 @@ def stresses_at_cells_nodes(C: np.ndarray, dofsol1d: np.ndarray,
         res[:, i, :] = stresses_at_point_bulk(C, dofsol1d, ecoords, gnum,
                                               dshp[i], sdmfnc)
     return res
-
-
-if __name__ == '__main__':
-    pass

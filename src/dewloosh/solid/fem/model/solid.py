@@ -5,7 +5,10 @@ from dewloosh.math.array import atleast2d
 
 from .utils import model_strains, stresses_from_strains
 from ..utils import topo_to_gnum
-from ..meta import FemModel
+from ..cells.meta import FemModel
+
+
+__all__ = ['Solid']
 
 
 class Solid(FemModel):

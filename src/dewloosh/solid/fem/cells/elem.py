@@ -13,18 +13,18 @@ from dewloosh.mesh.utils import distribute_nodal_data, collect_nodal_data
 
 from .meta import FemMixin
 from .celldata import CellData
-from .preproc import fem_coeff_matrix_coo
-from .postproc import approx_element_solution_bulk, calculate_internal_forces_bulk, \
+from ..preproc import fem_coeff_matrix_coo
+from ..postproc import approx_element_solution_bulk, calculate_internal_forces_bulk, \
     explode_kinetic_strains
-from .utils import topo_to_gnum, approximation_matrix, nodal_approximation_matrix, \
+from ..utils import topo_to_gnum, approximation_matrix, nodal_approximation_matrix, \
     nodal_compatibility_factors, compatibility_factors_to_coo, \
     compatibility_factors, penalty_factor_matrix, assemble_load_vector, \
     tr_cells_1d_in_multi, tr_cells_1d_out_multi, element_dof_solution_bulk, \
     transform_stiffness, constrain_local_stiffness_bulk, assert_min_stiffness_bulk, \
     expand_stiffness_bulk, element_dofmap_bulk
-from .cells.utils import stiffness_matrix_bulk2, strain_displacement_matrix_bulk2, \
+from .utils import stiffness_matrix_bulk2, strain_displacement_matrix_bulk2, \
     unit_strain_load_vector_bulk, strain_load_vector_bulk, mass_matrix_bulk
-from .tr import nodal_dcm, element_dcm
+from ..tr import nodal_dcm, element_dcm
 
 Quadrature = namedtuple('QuadratureRule', ['inds', 'pos', 'weight'])
 
