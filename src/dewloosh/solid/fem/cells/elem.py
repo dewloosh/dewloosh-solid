@@ -3,6 +3,7 @@ from scipy.sparse import coo_matrix
 import numpy as np
 from collections import namedtuple, Iterable
 from typing import Callable, Iterable
+from functools import partial
 
 from dewloosh.math import squeeze, config
 from dewloosh.math.linalg import ReferenceFrame
@@ -32,50 +33,41 @@ Quadrature = namedtuple('QuadratureRule', ['inds', 'pos', 'weight'])
 UX, UY, UZ, ROTX, ROTY, ROTZ = FX, FY, FZ, MX, MY, MZ = list(range(6))
 ulabels = {UX: 'UX', UY: 'UY', UZ: 'UZ',
            ROTX: 'ROTX', ROTY: 'ROTY', ROTZ: 'ROTZ'}
-flabels = {FX: 'FX', FY: 'FY', FZ: 'FZ', 
+flabels = {FX: 'FX', FY: 'FY', FZ: 'FZ',
            MX: 'MX', MY: 'MY', MZ: 'MZ'}
 ulabel_to_int = {v: k for k, v in ulabels.items()}
 flabel_to_int = {v: k for k, v in flabels.items()}
 
 
-def integrate(fnc: Callable, quadrature, qrule, *args, qkey='gauss', **kwargs):
-
-    def _eval(qinds, qvalue, *args, **kwargs):
-        if isinstance(qvalue, str):
-            # NOTE: this could be generalized. Now, the first referenece must be
-            # a direct reference to a pure type. The container object should be
-            # a Library instance, allowing for more complex definitions.
-            qpos, qweight = quadrature[qvalue]
-        else:
-            qpos, qweight = qvalue
-        kwargs[qkey] = Quadrature(qinds, qpos, qweight)
-        return fnc(*args, **kwargs)
-
-    q = quadrature[qrule]
-    if isinstance(q, dict):
-        # selective integration
-        res = np.sum([_eval(qi, qv, *args, **kwargs)
-                      for qi, qv in q.items()], axis=0)
-    else:
-        # uniform integration
-        res = _eval(None, q, *args, **kwargs)
-    return res
-
-
-class FiniteElement(CellData, FemMixin):
+class FemCellData(CellData):
 
     _attr_map_ = {
         'K': 'K',
         'M': 'M',
         'B': 'B',
     }
-    
-    def direction_cosine_matrix(self, *args, source=None, target=None, 
+
+    @property
+    def _dbkey_stiffness_matrix_(self) -> str:
+        return self.__class__._attr_map_['K']
+
+    @property
+    def _dbkey_strain_displacement_matrix_(self) -> str:
+        return self.__class__._attr_map_['B']
+
+    @property
+    def _dbkey_mass_matrix_(self) -> str:
+        return self.__class__._attr_map_['M']
+
+
+class FiniteElement(FemCellData, FemMixin):
+
+    def direction_cosine_matrix(self, *args, source=None, target=None,
                                 N=None, **kwargs):
         """
         Returns the DCM matrix from local to global for all elements 
         in the block.
-        
+
         """
         N = self.__class__.NNODE if N is None else N
         frames = self.frames  # dcm_G_L
@@ -324,7 +316,7 @@ class FiniteElement(CellData, FemMixin):
         -------
         numpy.ndarray 
             shape : (nE, nSTRE, nRHS)
-        
+
         """
         key = self.__class__._attr_map_['strain-loads']
         try:
@@ -520,17 +512,16 @@ class FiniteElement(CellData, FemMixin):
     def global_dof_numbering(self, *args, topo=None, **kwargs):
         topo = self.topology().to_numpy() if topo is None else topo
         return topo_to_gnum(topo, self.container.NDOFN)
-    
+
     @squeeze(True)
-    def stiffness_matrix(self, *args, **kwargs):
+    def stiffness_matrix(self, *args, transform=True, **kwargs):
         # build
-        K = self.stiffness_matrix_v2(*args, transform=False, **kwargs)
-                
+        K = self._stiffness_matrix_(*args, transform=False, **kwargs)
+
         # handle connectivity
-        key = self.__class__._attr_map_['connectivity']
-        if key in self.db.fields:
+        conn = self.connectivity
+        if conn is not None:
             # only for line meshes
-            conn = self.db[key].to_numpy()
             if len(conn.shape) == 3 and conn.shape[1] == 2:  # nE, 2, nDOF
                 nE, _, nDOF = conn.shape
                 factors = np.ones((nE, K.shape[-1]))
@@ -544,11 +535,11 @@ class FiniteElement(CellData, FemMixin):
             else:
                 raise NotImplementedError(
                     "Unknown shape of <{}> for 'connectivity'.".format(conn.shape))
-        
+
         # store
-        key = self.__class__._attr_map_['K']
-        self.db[key] = K
-        
+        dbkey = self._dbkey_stiffness_matrix_
+        self.db[dbkey] = K
+
         # expand, transform, return
         nDOFN = self.container.NDOFN
         dofmap = self.__class__.dofmap
@@ -558,121 +549,75 @@ class FiniteElement(CellData, FemMixin):
             K_ = np.zeros((nE, nX, nX), dtype=float)
             dofmap = element_dofmap_bulk(dofmap, nDOFN, self.NNODE)
             K = expand_stiffness_bulk(K, K_, dofmap)
-            assert_min_stiffness_bulk(K)       
-        
-        return self.transform_coeff_matrix(K)
+            assert_min_stiffness_bulk(K)
+
+        return self.transform_coeff_matrix(K) if transform else K
 
     @config(store_strains=False)
-    def stiffness_matrix_v1(self, *args, **kwargs):
-        _topo = kwargs.get('_topo', self.topology().to_numpy())
-        if 'frames' not in kwargs:
-            key = self.__class__._attr_map_['frames']
-            if key in self.db.fields:
-                frames = self.frames
+    def _stiffness_matrix_(self, *args, transform: bool = True, **kwargs):
+
+        ec = kwargs.get('_ec', None)
+        if ec is None:
+            nSTRE = self.__class__.NSTRE
+            nDOF = self.__class__.NDOFN
+            nNE = self.__class__.NNODE
+            nE = len(self)
+
+            _topo = kwargs.get('_topo', self.topology().to_numpy())
+            _frames = kwargs.get('_frames', self.frames)
+            if _frames is not None:
+                ec = self.local_coordinates(_topo=_topo, frames=_frames)
             else:
-                frames = None
-        _ecoords = kwargs.get('_ecoords', None)
-        if _ecoords is None:
-            if frames is not None:
-                _ecoords = self.local_coordinates(_topo=_topo, frames=frames)
-            else:
-                _ecoords = self.points_of_cells(topo=_topo)
+                ec = self.points_of_cells(topo=_topo)
+
+            if kwargs.get('store_strains', False):
+                dbkey = self._dbkey_strain_displacement_matrix_
+                self.db[dbkey] = np.zeros((nE, nSTRE, nDOF * nNE))
 
         q = kwargs.get('_q', None)
         if q is None:
             # main loop
+            D = self.model_stiffness_matrix()
+            func = partial(self._stiffness_matrix_, _D=D, **kwargs)
             q = self.quadrature[self.qrule]
+            N = nDOF * nNE
+            K = np.zeros((len(self), N, N))
             if isinstance(q, dict):
                 # many side loops
-                N = self.NNODE * self.NDOFN
-                res = np.zeros((len(self), N, N))
                 for qinds, qvalue in q.items():
                     if isinstance(qvalue, str):
                         qpos, qweight = self.quadrature[qvalue]
                     else:
                         qpos, qweight = qvalue
                     q = Quadrature(qinds, qpos, qweight)
-                    res[:, :, :] += self.stiffness_matrix_v1(*args, _topo=_topo,
-                                                             frames=frames, _q=q,
-                                                             _ecoords=_ecoords,
-                                                             **kwargs)
+                    K += func(_q=q, _ec=ec)
             else:
                 # one side loop
                 qpos, qweight = self.quadrature[self.qrule]
                 q = Quadrature(None, qpos, qweight)
-                res = self.stiffness_matrix_v1(*args, _topo=_topo,
-                                               frames=frames, _q=q,
-                                               _ecoords=_ecoords,
-                                               **kwargs)
+                K = func(_q=q, _ec=ec)
             # end of main cycle
-            key = self.__class__._attr_map_['K']
-            self.db[key] = res
-            return self.transform_coeff_matrix(res)
+            dbkey = self._dbkey_stiffness_matrix_
+            self.db[dbkey] = K
+            return self.transform_coeff_matrix(K) if transform else K
 
         # in side loop
         dshp = self.shape_function_derivatives(q.pos)
-        jac = self.jacobian_matrix(dshp=dshp, ecoords=_ecoords)
+        jac = self.jacobian_matrix(dshp=dshp, ecoords=ec)
         B = self.strain_displacement_matrix(dshp=dshp, jac=jac)
         if q.inds is not None:
             # zero out unused indices, only for selective integration
             inds = np.where(~np.in1d(np.arange(self.NSTRE), q.inds))[0]
             B[:, :, inds, :] = 0.
         djac = self.jacobian(jac=jac)
-        D = self.model_stiffness_matrix()
-
         if kwargs.get('store_strains', False):
-            raise NotImplementedError()
-
+            # B (nE, nG, nSTRE=4, nNODE * nDOF=6)
+            dbkey = self._dbkey_strain_displacement_matrix_
+            _B = self.db[dbkey].to_numpy()
+            _B += strain_displacement_matrix_bulk2(B, djac, q.weight)
+            self.db[dbkey] = _B
+        D = kwargs.get('_D', self.model_stiffness_matrix())
         return stiffness_matrix_bulk2(D, B, djac, q.weight)
-
-    @config(store_strains=True)
-    def stiffness_matrix_v2(self, *args, transform=True, **kwargs):
-        nSTRE = self.__class__.NSTRE
-        nDOF = self.__class__.NDOFN
-        nNE = self.__class__.NNODE
-        nE = len(self)
-        _gauss_strains_ = None
-
-        def _stiffness_matrix_(*args, gauss, ecoords, D, **kwargs):
-            nonlocal _gauss_strains_
-            dshp = self.shape_function_derivatives(gauss.pos)
-            jac = self.jacobian_matrix(dshp=dshp, ecoords=ecoords)
-            B = self.strain_displacement_matrix(dshp=dshp, jac=jac)
-            if gauss.inds is not None:
-                # zero out unused indices, only for selective integration
-                missing_indices = np.where(
-                    ~np.in1d(np.arange(nSTRE), gauss.inds))[0]
-                B[:, :, missing_indices, :] = 0.
-            djac = self.jacobian(jac=jac)
-            if kwargs.get('store_strains', False):
-                # B (nE, nG, nSTRE=4, nNODE * nDOF=6)
-                _B = strain_displacement_matrix_bulk2(B, djac, gauss.weight)
-                """if gauss.inds is None:
-                    qinds = tuple(range(nSTRE))
-                else:
-                    qinds = gauss.inds
-                self._gauss_strains_[qinds] = _B"""
-                _gauss_strains_ += _B
-            return stiffness_matrix_bulk2(D, B, djac, gauss.weight)
-
-        if kwargs.get('store_strains', False):
-            _gauss_strains_ = np.zeros((nE, nSTRE, nDOF * nNE))
-
-        Hooke = self.model_stiffness_matrix()
-        topo = self.topology().to_numpy()
-        frames = self.frames
-        ecoords = self.local_coordinates(_topo=topo, frames=frames)
-        kwargs['ecoords'] = ecoords
-        kwargs['D'] = Hooke
-        K = integrate(_stiffness_matrix_, self.quadrature,
-                      self.qrule, *args, qkey='gauss', **kwargs)
-        key = self.__class__._attr_map_['K']
-        self.db[key] = K
-        if kwargs.get('store_strains', False):
-            key = self.__class__._attr_map_['B']
-            self.db[key] = _gauss_strains_
-
-        return self.transform_coeff_matrix(K) if transform else K
 
     def stiffness_matrix_coo(self, *args, **kwargs):
         nP = len(self.pointdata)
@@ -684,9 +629,9 @@ class FiniteElement(CellData, FemMixin):
 
     @squeeze(True)
     def mass_matrix(self, *args, **kwargs):
-        return self.mass_matrix_v1(*args, **kwargs)
+        return self._mass_matrix_(*args, **kwargs)
 
-    def mass_matrix_v1(self, *args, values=None, **kwargs):
+    def _mass_matrix_(self, *args, values=None, **kwargs):
         _topo = kwargs.get('_topo', self.topology().to_numpy())
         if 'frames' not in kwargs:
             key = self.__class__._attr_map_['frames']
@@ -723,20 +668,20 @@ class FiniteElement(CellData, FemMixin):
                     else:
                         qpos, qweight = qvalue
                     q = Quadrature(qinds, qpos, qweight)
-                    res += self.mass_matrix_v1(*args, _topo=_topo,
-                                               frames=frames, _q=q,
-                                               values=_dens,
-                                               _ecoords=_ecoords,
-                                               **kwargs)
+                    res += self._mass_matrix_(*args, _topo=_topo,
+                                              frames=frames, _q=q,
+                                              values=_dens,
+                                              _ecoords=_ecoords,
+                                              **kwargs)
             else:
                 qpos, qweight = self.quadrature['mass']
                 q = Quadrature(None, qpos, qweight)
-                res = self.mass_matrix_v1(*args, _topo=_topo,
-                                          frames=frames, _q=q,
-                                          values=_dens,
-                                          _ecoords=_ecoords,
-                                          **kwargs)
-            
+                res = self._mass_matrix_(*args, _topo=_topo,
+                                         frames=frames, _q=q,
+                                         values=_dens,
+                                         _ecoords=_ecoords,
+                                         **kwargs)
+
             key = self.__class__._attr_map_['M']
             self.db[key] = res
             return self.transform_coeff_matrix(res)
@@ -777,7 +722,7 @@ class FiniteElement(CellData, FemMixin):
         if dbkey not in self.db.fields:
             self.stiffness_matrix(*args, squeeze=False,
                                   store_strains=True, **kwargs)
-        
+
         B = self.db[dbkey].to_numpy()  # (nE, nSTRE=4, nNODE * nDOF=6)
         D = self.model_stiffness_matrix()  # (nE, nSTRE=4, nSTRE=4)
         BTD = unit_strain_load_vector_bulk(D, B)
@@ -792,7 +737,7 @@ class FiniteElement(CellData, FemMixin):
         Builds the equivalent nodal node representation of body loads
         and returns it in the global frame, or an arbitrary target frame 
         if specified.
-        
+
         """
         nNE = self.__class__.NNODE
         # prepare data to shape (nE, nNE * nDOF, nRHS)
@@ -828,7 +773,7 @@ class FiniteElement(CellData, FemMixin):
 
         nodal_loads = self.integrate_body_loads(values)
         return self.transform_local_nodal_loads(nodal_loads)
-    
+
     def transform_local_nodal_loads(self: 'FiniteElement', nodal_loads):
         """
         nodal_loads (nE, nNE * nDOF, nRHS) == (nE, nX, nRHS)

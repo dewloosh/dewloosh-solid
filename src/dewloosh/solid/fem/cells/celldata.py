@@ -15,11 +15,12 @@ class CellData(MeshCellData):
         'strain-loads': 'strain-loads',
         'density': 'density',
         'connectivity' : 'connectivity',
+        'areas' : 'areas',
     }
 
     def __init__(self, *args, model=None, activity=None, density=None,
                  loads=None, strain_loads=None, t=None, fields=None, 
-                 thickness=None, **kwargs):
+                 thickness=None, connectivity=None, areas=None, **kwargs):
         amap = self.__class__._attr_map_
 
         t = t if thickness is None else thickness
@@ -44,7 +45,15 @@ class CellData(MeshCellData):
                 assert isboolarray(activity) and len(activity.shape) == 1, \
                     "'activity' must be a 1d boolean numpy array!"
             self.activity = activity
-
+            
+            # connectivity
+            if isinstance(connectivity, np.ndarray):
+                self.connectivity = connectivity
+                
+            # areas
+            if isinstance(areas, np.ndarray):
+                self._wrapped[self.__class__._attr_map_['areas']] = areas
+            
             # densities
             if isinstance(density, np.ndarray):
                 assert len(density.shape) == 1, \
@@ -105,7 +114,7 @@ class CellData(MeshCellData):
     def loads(self, value: ndarray):
         assert isinstance(value, ndarray)
         self._wrapped[self.__class__._attr_map_['loads']] = value
-        
+                
     @property
     def density(self) -> ndarray:
         return self._wrapped[self.__class__._attr_map_['density']].to_numpy()
@@ -114,3 +123,16 @@ class CellData(MeshCellData):
     def density(self, value: ndarray):
         assert isinstance(value, ndarray)
         self._wrapped[self.__class__._attr_map_['density']] = value
+        
+    @property
+    def connectivity(self) -> ndarray:
+        key = self.__class__._attr_map_['connectivity']
+        if key in self._wrapped.fields:
+            return self._wrapped[key].to_numpy()
+        else:
+            return None
+
+    @connectivity.setter
+    def connectivity(self, value: ndarray):
+        assert isinstance(value, ndarray)
+        self._wrapped[self.__class__._attr_map_['connectivity']] = value

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from typing import Collection
 import numpy as np
 
 from dewloosh.math import squeeze
@@ -8,6 +9,7 @@ from dewloosh.mesh import PolyData
 
 from .pointdata import PointData
 from .cells.celldata import CellData
+from .cells.meta import ABCFiniteElement
 from .preproc import fem_load_vector, fem_penalty_matrix_coo, \
     fem_nodal_mass_matrix_coo
 
@@ -20,7 +22,8 @@ class FemMesh(PolyData):
 
     def __init__(self, *args, model=None, fixity=None, loads=None, body_loads=None,
                  strain_loads=None, t=None, density=None, mass=None,
-                 cell_fields=None, point_fields=None, activity=None, **kwargs):
+                 cell_fields=None, point_fields=None, activity=None, 
+                 connectivity=None, **kwargs):
         # fill up data objects with obvious data
         pkeys = self.__class__._point_class_._attr_map_
         point_fields = {} if point_fields is None else point_fields
@@ -34,6 +37,7 @@ class FemMesh(PolyData):
         cell_fields[ckeys['strain-loads']] = strain_loads
         cell_fields[ckeys['density']] = density
         cell_fields[ckeys['t']] = t
+        cell_fields[ckeys['connectivity']] = connectivity
         super().__init__(*args, point_fields=point_fields,
                          cell_fields=cell_fields, **kwargs)
         # nodal data can only be provided for the root object
@@ -44,7 +48,7 @@ class FemMesh(PolyData):
                 can only be provided at the top level."
             assert mass is None, "At object creation, nodal masses can only \
                 be provided at the top level."
-        # it is determined by the size of `activity` whether it refers to 
+        # it is determined by the size of `activity` whether it refers to
         # cells or points
         if isinstance(activity, np.ndarray):
             nA = activity.shape[0]
@@ -76,7 +80,7 @@ class FemMesh(PolyData):
             else:
                 def foo(b): return b.celldata.coords(*args, **kwargs)
                 return np.vstack(list(map(foo, blocks)))
-            
+
     def element_dof_numbering(self, *args, **kwargs):
         blocks = self.cellblocks(inclusive=True)
         def foo(b): return b.celldata.global_dof_numbering()
@@ -101,7 +105,7 @@ class FemMesh(PolyData):
         if sum_duplicates:
             K.sum_duplicates()
         return K
-    
+
     def mass_matrix(self, *args, sparse=True, **kwargs):
         """
         Returns the mass matrix of the mesh with either dense 
@@ -145,6 +149,7 @@ class FemMesh(PolyData):
                 v = self.volumes()
                 edata = list(
                     map(lambda b: b.celldata.pull(data=d, avg=v), blocks))
+
                 def foo(bv): return bv[0].celldata.mass_matrix_coo(
                     values=bv[1])
                 moo = map(lambda i: (blocks[i], edata[i]), range(len(blocks)))
