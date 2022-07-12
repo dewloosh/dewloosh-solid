@@ -105,6 +105,14 @@ class FemMesh(PolyData):
         if sum_duplicates:
             K.sum_duplicates()
         return K
+    
+    def masses(self, *args, **kwargs) -> np.ndarray:
+        blocks = self.cellblocks(*args, inclusive=True, **kwargs)
+        vmap = map(lambda b: b.celldata.masses(), blocks)
+        return np.concatenate(list(vmap))
+    
+    def mass(self, *args, **kwargs) -> float:
+        return np.sum(self.masses(*args, **kwargs))
 
     def mass_matrix(self, *args, sparse=True, **kwargs):
         """
