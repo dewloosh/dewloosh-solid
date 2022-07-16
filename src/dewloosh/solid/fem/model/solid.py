@@ -12,6 +12,9 @@ __all__ = ['Solid']
 
 
 class Solid(FemModel):
+    
+    dofs = ('UX', 'UY', 'UZ')
+    strn = ('exx', 'eyy', 'ezz', 'eyz', 'exz', 'exy')
 
     NDOFN = 3
     NSTRE = 6

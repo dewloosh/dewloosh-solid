@@ -19,7 +19,7 @@ class FemMesh(PolyData):
     dofs = ('UX', 'UY', 'UZ', 'ROTX', 'ROTY', 'ROTZ')
     NDOFN = 6
     _point_class_ = PointData
-
+    
     def __init__(self, *args, model=None, fixity=None, loads=None, body_loads=None,
                  strain_loads=None, t=None, density=None, mass=None,
                  cell_fields=None, point_fields=None, activity=None, 
