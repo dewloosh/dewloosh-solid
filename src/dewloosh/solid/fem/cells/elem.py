@@ -2,7 +2,7 @@
 from scipy.sparse import coo_matrix
 import numpy as np
 from collections import namedtuple, Iterable
-from typing import Callable, Iterable
+from typing import Iterable
 from functools import partial
 
 from dewloosh.math import squeeze, config
@@ -152,9 +152,9 @@ class FiniteElement(FemCellData, FemMixin):
 
         # transform values to cell-local frames
         values = element_dof_solution_bulk(dofsol, gnum)  # (nE, nEVAB, nRHS)
-        values = ascont(np.swapaxes(values, 1, 2))
+        values = ascont(np.swapaxes(values, 1, 2))  # (nE, nRHS, nEVAB)
         values = tr_cells_1d_in_multi(values, dcm)
-        values = ascont(np.swapaxes(values, 1, 2))
+        values = ascont(np.swapaxes(values, 1, 2))  # (nE, nEVAB, nRHS)
 
         if points is None:
             points = np.array(self.lcoords()).flatten()
@@ -163,14 +163,14 @@ class FiniteElement(FemCellData, FemMixin):
             rng = np.array([0, 1]) if rng is None else np.array(rng)
 
         # approximate at points
-        # values : (nE, nEVAB, nRHS)
+        # values -> (nE, nEVAB, nRHS)
         points, rng = to_range(
             points, source=rng, target=[-1, 1]).flatten(), [-1, 1]
-        N = self.shape_function_matrix(points, rng=rng)[
-            cells]  # (nE, nP, nDOF, nDOF * nNODE)
+        N = self.shape_function_matrix(points, rng=rng)[cells]
+        # N -> (nE, nP, nDOF, nDOF * nNODE)
         values = ascont(np.swapaxes(values, 1, 2))  # (nE, nRHS, nEVAB)
-        values = approx_element_solution_bulk(
-            values, N)  # (nE, nRHS, nP, nDOF)
+        values = approx_element_solution_bulk(values, N)
+        # values -> (nE, nRHS, nP, nDOF)
 
         if target is not None:
             # transform values to a destination frame, otherwise return
@@ -188,13 +188,13 @@ class FiniteElement(FemCellData, FemMixin):
                 values = tr_cells_1d_out_multi(values, dcm)
                 values = values.reshape(nE, nRHS, nP, nDOF)
 
-        values = np.moveaxis(values, 1, -1)   # (nE, nP, nDOF, nRHS)
+        values = np.moveaxis(values, 1, -1)  # (nE, nP, nDOF, nRHS)
 
         if flatten:
             nE, nP, nDOF, nRHS = values.shape
             values = values.reshape(nE, nP * nDOF, nRHS)
 
-        # values : (nE, nP, nDOF, nRHS)
+        # values -> (nE, nP, nDOF, nRHS)
         if isinstance(cells, slice):
             # results are requested on all elements
             data = values
